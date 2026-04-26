@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `time_mcp_server.notify_hook` module — Claude Code `UserPromptSubmit`
+  hook that injects emoji-prefixed notifications for expired timers and
+  fired alarms into the session context. One-shot semantics via a
+  `notified_at` field on each record (existing records without the field
+  are treated as pending; schema-repair on first save). Designed to fail
+  silently (always returns exit 0) so a malformed state file or other
+  unexpected error never blocks the user's prompt.
+- 11 unit tests for the hook including pure-function `collect_notifications`
+  coverage (empty state, expired timer, fired alarm, cancelled-skip,
+  already-notified-skip, running-skip, unlabeled-items, multiple-items,
+  legacy records without `notified_at`) plus 2 subprocess smoke tests
+  (no-state exit, expired-timer JSON output + persistence).
+- README "Notification hook (optional)" section with `settings.json`
+  config snippet.
+
+### Changed
+- `src/time_mcp_server/__init__.py` no longer eagerly imports
+  `time_mcp_server.server` at package load time. This keeps
+  `import time_mcp_server.notify_hook` cheap (avoids pulling in FastMCP /
+  pydantic / dateparser per `UserPromptSubmit` hook fire). Tests and the
+  `python -m time_mcp_server` entry point continue to import from
+  submodules directly.
+
+### Added
 - Four alarm (absolute-time fire) tools: `alarm_set(when, label?)`,
   `alarm_list()`, `alarm_check(alarm_id)`, `alarm_cancel(alarm_id)`. State
   persisted under `state["alarms"]`. Status (`pending` / `fired` /

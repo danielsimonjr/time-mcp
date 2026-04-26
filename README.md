@@ -36,12 +36,17 @@ A FastMCP server providing time, timezone, timer, stopwatch, and alarm tools for
 
 ## Design notes
 
-- **No daemons, no notifications.** Status is *computed* at read time from
-  stored timestamps. To react when a timer expires or an alarm fires, pair
-  with Claude Code's `/loop` to poll, e.g.:
+- **No daemons.** Status is *computed* at read time from stored timestamps.
+  To react when a timer expires or an alarm fires, pair with Claude Code's
+  `/loop` to poll, e.g.:
   ```
   /loop 30s timer_check abc12345; if status is "expired", do X
   ```
+- **Optional notification hook.** A small `notify_hook` module ships in the
+  package. When wired as a `UserPromptSubmit` hook in
+  `~/.claude/settings.json`, it injects emoji-prefixed notifications for
+  timers/alarms that have fired since the last check (one-shot via
+  `notified_at`). See **Notification hook** below.
 - **Persistent state** at `~/.time-mcp/state.json` (override via
   `TIME_MCP_STATE_DIR` env var). Atomic writes via temp-file rename. UTF-8
   throughout, so emoji and accented labels round-trip cleanly.
@@ -83,6 +88,41 @@ Add to your MCP config (e.g., `~/.claude/local-marketplace/mcp-host/.mcp.json`):
 
 Then run `/reload-plugins` in Claude Code. Tools appear as
 `mcp__plugin_mcp-host_time-mcp__*`.
+
+## Notification hook (optional)
+
+Wire `notify_hook` into Claude Code so timer expirations and alarm fires
+appear as in-session context on your next prompt — no `/loop` polling
+required for the basic "tell me when it fires" use case.
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "command": "C:/Users/<you>/.venvs/time-mcp/Scripts/python.exe -m time_mcp_server.notify_hook"
+      }
+    ]
+  }
+}
+```
+
+On every prompt you submit (including `/loop` iterations), the hook reads
+`~/.time-mcp/state.json`, finds timers with status `expired` and alarms with
+status `fired` that haven't yet been notified, emits one notification per
+item to Claude as `additionalContext`, and marks them notified so they
+don't repeat. Output looks like:
+
+```
+🔔 Timer 'deploy check' (wxZ0Sg3B) expired 4m ago
+🔔 Alarm 'meeting prep' (a8Kp2Lw9) fired 12s ago
+```
+
+The hook is designed to fail silently — any unexpected error returns exit
+code 0 with no output, so a malformed state file or missing venv never
+blocks your prompt.
 
 ## Development
 

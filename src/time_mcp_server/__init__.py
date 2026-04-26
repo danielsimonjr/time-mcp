@@ -1,5 +1,6 @@
-"""time-mcp — FastMCP server providing time, timezone, timer, stopwatch, and alarm tools."""
+"""time-mcp — FastMCP server providing time, timezone, timer, stopwatch, and alarm tools.
 
-from time_mcp_server.server import main
-
-__all__ = ["main"]
+Submodules import explicitly (``from time_mcp_server.server import ...``) to keep
+``import time_mcp_server`` itself cheap — important for the notify_hook script
+which fires on every UserPromptSubmit.
+"""
