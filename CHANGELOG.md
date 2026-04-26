@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Four stopwatch (count-up) tools: `stopwatch_start(label?)`,
+  `stopwatch_stop(stopwatch_id)`, `stopwatch_check(stopwatch_id)`,
+  `stopwatch_list()`. State persisted under `state["stopwatches"]`. Status
+  (`running` / `stopped`) and elapsed time are computed at read time.
+  `stopwatch_stop` is **not** idempotent — stopping an already-stopped
+  stopwatch returns an error so double-stop bugs surface clearly.
+- 10 unit tests for stopwatch lifecycle including injected-state checks
+  for both running and stopped variants.
 - Four timer (countdown) tools: `timer_start(duration, label?)`,
   `timer_list()`, `timer_check(timer_id)`, `timer_cancel(timer_id)`. State
   is persisted under `state["timers"]`. Status (`running` / `expired` /

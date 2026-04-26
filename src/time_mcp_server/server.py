@@ -156,6 +156,14 @@ class TimerIdInput(BaseModel):
     timer_id: str = Field(..., description="8-char timer ID returned by timer_start")
 
 
+class StopwatchStartInput(BaseModel):
+    label: Optional[str] = Field(None, description="Optional human label for the stopwatch.")
+
+
+class StopwatchIdInput(BaseModel):
+    stopwatch_id: str = Field(..., description="8-char stopwatch ID returned by stopwatch_start")
+
+
 # ── Time & Timezone Tools ─────────────────────────────────────────────────────
 
 
@@ -315,6 +323,109 @@ async def timer_cancel(params: TimerIdInput) -> str:
         now = datetime.now(timezone.utc)
         return json.dumps(
             {"status": "ok", "timer": _timer_view(params.timer_id, record, now)}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+# ── Stopwatch Tools ───────────────────────────────────────────────────────────
+
+
+def _stopwatch_view(stopwatch_id: str, record: dict, now: datetime) -> dict:
+    """Render a stored stopwatch record as a status payload (computed fields)."""
+    started_at = datetime.fromisoformat(record["started_at"])
+    stopped_at_str = record.get("stopped_at")
+    if stopped_at_str:
+        stopped_at = datetime.fromisoformat(stopped_at_str)
+        elapsed = int((stopped_at - started_at).total_seconds())
+        status = "stopped"
+    else:
+        elapsed = int((now - started_at).total_seconds())
+        status = "running"
+    return {
+        "stopwatch_id": stopwatch_id,
+        "label": record.get("label"),
+        "started_at": record["started_at"],
+        "stopped_at": stopped_at_str,
+        "status": status,
+        "elapsed_seconds": elapsed,
+    }
+
+
+@mcp.tool()
+async def stopwatch_start(params: StopwatchStartInput) -> str:
+    """Start a stopwatch counting up from now. Returns the new stopwatch's ID."""
+
+    def _run():
+        now = datetime.now(timezone.utc)
+        sw_id = make_id()
+        state = load_state()
+        state["stopwatches"][sw_id] = {
+            "label": params.label,
+            "started_at": now.isoformat(),
+            "stopped_at": None,
+        }
+        save_state(state)
+        return json.dumps(
+            {"status": "ok", "stopwatch_id": sw_id, "label": params.label}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def stopwatch_stop(params: StopwatchIdInput) -> str:
+    """Stop a running stopwatch and return the final elapsed time.
+
+    Not idempotent — stopping an already-stopped stopwatch is a usage error.
+    """
+
+    def _run():
+        state = load_state()
+        record = state["stopwatches"].get(params.stopwatch_id)
+        if record is None:
+            return _err(f"Stopwatch {params.stopwatch_id!r} not found")
+        if record.get("stopped_at") is not None:
+            return _err(f"Stopwatch {params.stopwatch_id!r} is already stopped")
+        now = datetime.now(timezone.utc)
+        record["stopped_at"] = now.isoformat()
+        save_state(state)
+        return json.dumps(
+            {"status": "ok", "stopwatch": _stopwatch_view(params.stopwatch_id, record, now)}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def stopwatch_check(params: StopwatchIdInput) -> str:
+    """Look up a single stopwatch's elapsed time without stopping it."""
+
+    def _run():
+        state = load_state()
+        record = state["stopwatches"].get(params.stopwatch_id)
+        if record is None:
+            return _err(f"Stopwatch {params.stopwatch_id!r} not found")
+        now = datetime.now(timezone.utc)
+        return json.dumps(
+            {"status": "ok", "stopwatch": _stopwatch_view(params.stopwatch_id, record, now)}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def stopwatch_list(params: EmptyInput) -> str:
+    """List all stopwatches with their computed status and elapsed time."""
+
+    def _run():
+        state = load_state()
+        now = datetime.now(timezone.utc)
+        watches = [
+            _stopwatch_view(sid, rec, now) for sid, rec in state["stopwatches"].items()
+        ]
+        return json.dumps(
+            {"status": "ok", "count": len(watches), "stopwatches": watches}
         )
 
     return await asyncio.to_thread(_run)
