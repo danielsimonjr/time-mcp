@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Four timer (countdown) tools: `timer_start(duration, label?)`,
+  `timer_list()`, `timer_check(timer_id)`, `timer_cancel(timer_id)`. State
+  is persisted under `state["timers"]`. Status (`running` / `expired` /
+  `cancelled`) is *computed* at read time from `expires_at` and
+  `cancelled_at` — no daemon needed. `timer_cancel` is idempotent. All
+  durations parsed via `/loop`-compatible syntax (`5m`, `1h30m`, `90s`, …).
+- 12 unit tests for timer lifecycle including expired-via-injected-state,
+  cancellation flow, missing-ID errors, and idempotent cancel.
 - Persistence layer at `src/time_mcp_server/state.py`: JSON state file at
   `~/.time-mcp/state.json` (override via `TIME_MCP_STATE_DIR`), atomic writes
   via tempfile + `os.replace` with 3-attempt retry-on-Windows-sharing-violation,

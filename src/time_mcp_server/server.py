@@ -1,23 +1,18 @@
-"""FastMCP server providing time, timezone, timer, stopwatch, and alarm tools.
-
-Currently implemented (initial release):
-  get_current_time   — current time in any IANA timezone
-  convert_time       — convert HH:MM between two IANA timezones
-
-Subsequent commits add: state persistence + parsers, then timer / stopwatch /
-alarm lifecycles.
-"""
+"""FastMCP server providing time, timezone, timer, stopwatch, and alarm tools."""
 
 import asyncio
 import json
 import logging
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
+
+from time_mcp_server.parsers import parse_duration
+from time_mcp_server.state import load_state, make_id, save_state
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -142,6 +137,25 @@ class ConvertTimeInput(BaseModel):
     target_timezone: str = Field(..., description="Target IANA timezone name")
 
 
+class EmptyInput(BaseModel):
+    pass
+
+
+class TimerStartInput(BaseModel):
+    duration: str = Field(
+        ...,
+        description=(
+            "Countdown duration. Accepts '5m', '1h30m', '90s', '1d2h3m4s', "
+            "or a bare integer (seconds)."
+        ),
+    )
+    label: Optional[str] = Field(None, description="Optional human label for the timer.")
+
+
+class TimerIdInput(BaseModel):
+    timer_id: str = Field(..., description="8-char timer ID returned by timer_start")
+
+
 # ── Time & Timezone Tools ─────────────────────────────────────────────────────
 
 
@@ -183,6 +197,125 @@ async def convert_time(params: ConvertTimeInput) -> str:
 
         today = datetime.now(src_zone).date()
         return json.dumps(_convert_wallclock(params.time, src_zone, dst_zone, today))
+
+    return await asyncio.to_thread(_run)
+
+
+# ── Timer Tools ───────────────────────────────────────────────────────────────
+
+
+def _timer_view(timer_id: str, record: dict, now: datetime) -> dict:
+    """Render a stored timer record as a status payload.
+
+    Status is computed (never stored) so that time passing doesn't require
+    a state mutation.
+    """
+    expires_at = datetime.fromisoformat(record["expires_at"])
+    if record.get("cancelled_at"):
+        status = "cancelled"
+        remaining = 0
+    elif now >= expires_at:
+        status = "expired"
+        remaining = int((expires_at - now).total_seconds())
+    else:
+        status = "running"
+        remaining = int((expires_at - now).total_seconds())
+    return {
+        "timer_id": timer_id,
+        "label": record.get("label"),
+        "started_at": record["started_at"],
+        "expires_at": record["expires_at"],
+        "cancelled_at": record.get("cancelled_at"),
+        "status": status,
+        "remaining_seconds": remaining,
+    }
+
+
+@mcp.tool()
+async def timer_start(params: TimerStartInput) -> str:
+    """Start a countdown timer that fires after *duration* elapses.
+
+    Returns the new timer's ID. Status is queryable via timer_check or
+    timer_list — there is no automatic notification on expiry, so pair with
+    Claude Code's `/loop` to poll if you want to react when it fires.
+    """
+
+    def _run():
+        try:
+            seconds = parse_duration(params.duration)
+        except ValueError as exc:
+            return _err(str(exc))
+
+        now = datetime.now(timezone.utc)
+        timer_id = make_id()
+        record = {
+            "label": params.label,
+            "started_at": now.isoformat(),
+            "expires_at": (now + timedelta(seconds=seconds)).isoformat(),
+            "cancelled_at": None,
+        }
+        state = load_state()
+        state["timers"][timer_id] = record
+        save_state(state)
+        return json.dumps(
+            {
+                "status": "ok",
+                "timer_id": timer_id,
+                "label": params.label,
+                "duration_seconds": seconds,
+                "expires_at": record["expires_at"],
+            }
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def timer_list(params: EmptyInput) -> str:
+    """List all timers with their computed status and remaining time."""
+
+    def _run():
+        state = load_state()
+        now = datetime.now(timezone.utc)
+        timers = [
+            _timer_view(tid, rec, now) for tid, rec in state["timers"].items()
+        ]
+        return json.dumps({"status": "ok", "count": len(timers), "timers": timers})
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def timer_check(params: TimerIdInput) -> str:
+    """Look up a single timer by ID."""
+
+    def _run():
+        state = load_state()
+        record = state["timers"].get(params.timer_id)
+        if record is None:
+            return _err(f"Timer {params.timer_id!r} not found")
+        now = datetime.now(timezone.utc)
+        return json.dumps({"status": "ok", "timer": _timer_view(params.timer_id, record, now)})
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def timer_cancel(params: TimerIdInput) -> str:
+    """Cancel a timer. Idempotent — cancelling an already-cancelled timer is OK."""
+
+    def _run():
+        state = load_state()
+        record = state["timers"].get(params.timer_id)
+        if record is None:
+            return _err(f"Timer {params.timer_id!r} not found")
+        if record.get("cancelled_at") is None:
+            record["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+            save_state(state)
+        now = datetime.now(timezone.utc)
+        return json.dumps(
+            {"status": "ok", "timer": _timer_view(params.timer_id, record, now)}
+        )
 
     return await asyncio.to_thread(_run)
 
