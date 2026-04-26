@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from time_mcp_server.parsers import parse_duration
+from time_mcp_server.parsers import parse_alarm_time, parse_duration
 from time_mcp_server.state import load_state, make_id, save_state
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -162,6 +162,22 @@ class StopwatchStartInput(BaseModel):
 
 class StopwatchIdInput(BaseModel):
     stopwatch_id: str = Field(..., description="8-char stopwatch ID returned by stopwatch_start")
+
+
+class AlarmSetInput(BaseModel):
+    when: str = Field(
+        ...,
+        description=(
+            "When the alarm should fire — natural language ('in 4 hours', "
+            "'tomorrow at 9am') or absolute timestamp ('2030-12-31 23:59:00'). "
+            "Naive absolute strings are interpreted as UTC."
+        ),
+    )
+    label: Optional[str] = Field(None, description="Optional human label for the alarm.")
+
+
+class AlarmIdInput(BaseModel):
+    alarm_id: str = Field(..., description="8-char alarm ID returned by alarm_set")
 
 
 # ── Time & Timezone Tools ─────────────────────────────────────────────────────
@@ -426,6 +442,123 @@ async def stopwatch_list(params: EmptyInput) -> str:
         ]
         return json.dumps(
             {"status": "ok", "count": len(watches), "stopwatches": watches}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+# ── Alarm Tools ───────────────────────────────────────────────────────────────
+
+
+def _alarm_view(alarm_id: str, record: dict, now: datetime) -> dict:
+    """Render a stored alarm record as a status payload (computed fields)."""
+    fires_at = datetime.fromisoformat(record["fires_at"])
+    if record.get("cancelled_at"):
+        status = "cancelled"
+    elif now >= fires_at:
+        status = "fired"
+    else:
+        status = "pending"
+    return {
+        "alarm_id": alarm_id,
+        "label": record.get("label"),
+        "fires_at": record["fires_at"],
+        "cancelled_at": record.get("cancelled_at"),
+        "status": status,
+        "seconds_until_fire": int((fires_at - now).total_seconds()),
+    }
+
+
+@mcp.tool()
+async def alarm_set(params: AlarmSetInput) -> str:
+    """Set an alarm to fire at an absolute time.
+
+    Accepts natural language ('in 4 hours', 'tomorrow at 9am') and ISO
+    timestamps. Naive absolute strings are interpreted as UTC. Times that
+    parse to the past are rejected — use a timer with duration 0 if you
+    want an immediately-fired marker.
+    """
+
+    def _run():
+        try:
+            fires_at = parse_alarm_time(params.when)
+        except ValueError as exc:
+            return _err(str(exc))
+
+        now = datetime.now(timezone.utc)
+        if fires_at <= now:
+            return _err(
+                f"Alarm time {params.when!r} is in the past ({fires_at.isoformat()})"
+            )
+
+        alarm_id = make_id()
+        record = {
+            "label": params.label,
+            "fires_at": fires_at.astimezone(timezone.utc).isoformat(),
+            "cancelled_at": None,
+        }
+        state = load_state()
+        state["alarms"][alarm_id] = record
+        save_state(state)
+        return json.dumps(
+            {
+                "status": "ok",
+                "alarm_id": alarm_id,
+                "label": params.label,
+                "fires_at": record["fires_at"],
+            }
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def alarm_list(params: EmptyInput) -> str:
+    """List all alarms with their computed status and seconds-until-fire."""
+
+    def _run():
+        state = load_state()
+        now = datetime.now(timezone.utc)
+        alarms = [
+            _alarm_view(aid, rec, now) for aid, rec in state["alarms"].items()
+        ]
+        return json.dumps({"status": "ok", "count": len(alarms), "alarms": alarms})
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def alarm_check(params: AlarmIdInput) -> str:
+    """Look up a single alarm by ID."""
+
+    def _run():
+        state = load_state()
+        record = state["alarms"].get(params.alarm_id)
+        if record is None:
+            return _err(f"Alarm {params.alarm_id!r} not found")
+        now = datetime.now(timezone.utc)
+        return json.dumps(
+            {"status": "ok", "alarm": _alarm_view(params.alarm_id, record, now)}
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+@mcp.tool()
+async def alarm_cancel(params: AlarmIdInput) -> str:
+    """Cancel an alarm. Idempotent — cancelling an already-cancelled alarm is OK."""
+
+    def _run():
+        state = load_state()
+        record = state["alarms"].get(params.alarm_id)
+        if record is None:
+            return _err(f"Alarm {params.alarm_id!r} not found")
+        if record.get("cancelled_at") is None:
+            record["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+            save_state(state)
+        now = datetime.now(timezone.utc)
+        return json.dumps(
+            {"status": "ok", "alarm": _alarm_view(params.alarm_id, record, now)}
         )
 
     return await asyncio.to_thread(_run)

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Four alarm (absolute-time fire) tools: `alarm_set(when, label?)`,
+  `alarm_list()`, `alarm_check(alarm_id)`, `alarm_cancel(alarm_id)`. State
+  persisted under `state["alarms"]`. Status (`pending` / `fired` /
+  `cancelled`) is computed at read time. Accepts natural-language times
+  via `parse_alarm_time` (e.g. `"in 4 hours"`, `"tomorrow at 9am"`,
+  `"2030-12-31 23:59:00"`); times in the past are rejected. `alarm_cancel`
+  is idempotent.
+- 12 unit tests for alarm lifecycle including absolute/relative input,
+  fired status via injected past timestamps, mixed-status list, past-time
+  rejection.
 - Four stopwatch (count-up) tools: `stopwatch_start(label?)`,
   `stopwatch_stop(stopwatch_id)`, `stopwatch_check(stopwatch_id)`,
   `stopwatch_list()`. State persisted under `state["stopwatches"]`. Status
