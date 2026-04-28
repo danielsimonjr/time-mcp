@@ -1,0 +1,39 @@
+# Git internals — keeps Dropbox out of .git so git operations don't get blocked
+.git/
+
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.parcel-cache/
+
+# Coverage
+coverage/
+.coverage
+.nyc_output/
+
+# Secrets / env
+.env
+.env.local
+.env.*.local
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
