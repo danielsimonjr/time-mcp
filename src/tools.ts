@@ -1,7 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { DateTime } from "luxon";
-import { loadState, withState, makeId, type TimerRecord } from "./state.js";
+import { loadState, withState, makeId, type TimerRecord, type StopwatchRecord } from "./state.js";
 import { parseDuration } from "./parsers.js";
 import { getCurrentTime, convertTime } from "./time.js";
 
@@ -204,6 +204,22 @@ function timerView(id: string, r: TimerRecord, now: DateTime): {
 const TimerStartArgs = z.object({ duration: z.string(), label: z.string().nullish() });
 const TimerIdArgs = z.object({ timer_id: z.string() });
 
+function stopwatchView(id: string, r: StopwatchRecord, now: DateTime): {
+  stopwatch_id: string; label: string | null; started_at: string; stopped_at: string | null;
+  status: string; elapsed_seconds: number;
+} {
+  const started = DateTime.fromISO(r.started_at);
+  const end = r.stopped_at ? DateTime.fromISO(r.stopped_at) : now;
+  return {
+    stopwatch_id: id, label: r.label, started_at: r.started_at, stopped_at: r.stopped_at,
+    status: r.stopped_at ? "stopped" : "running",
+    elapsed_seconds: Math.floor(end.diff(started, "seconds").seconds),
+  };
+}
+
+const StopwatchStartArgs = z.object({ label: z.string().nullish() });
+const StopwatchIdArgs = z.object({ stopwatch_id: z.string() });
+
 // ---------------------------------------------------------------------------
 // HANDLERS map — populated incrementally in Tasks 6, 7, 8.
 // ---------------------------------------------------------------------------
@@ -260,6 +276,40 @@ export const HANDLERS: Record<string, ToolHandler> = {
     if (!result.found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
     return JSON.stringify({ status: "ok", timer: result.view });
   },
-  // stopwatch handlers added in Task 7
+  async stopwatch_start(raw) {
+    const { label } = StopwatchStartArgs.parse(raw);
+    const startedAt = nowIso();
+    const id = makeId();
+    await withState(async (s) => {
+      s.stopwatches[id] = { label: label ?? null, started_at: startedAt, stopped_at: null };
+    });
+    return JSON.stringify({ status: "ok", stopwatch_id: id, label: label ?? null });
+  },
+  async stopwatch_check(raw) {
+    const { stopwatch_id } = StopwatchIdArgs.parse(raw);
+    const s = await loadState();
+    const r = s.stopwatches[stopwatch_id];
+    if (!r) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
+    return JSON.stringify({ status: "ok", stopwatch: stopwatchView(stopwatch_id, r, DateTime.utc()) });
+  },
+  // *** Spec §9.2: idempotent stop. Differs from Python — first-stop wins. ***
+  async stopwatch_stop(raw) {
+    const { stopwatch_id } = StopwatchIdArgs.parse(raw);
+    let result: { found: boolean; view?: ReturnType<typeof stopwatchView> } = { found: false };
+    await withState(async (s) => {
+      const r = s.stopwatches[stopwatch_id];
+      if (!r) return;
+      if (!r.stopped_at) r.stopped_at = nowIso();
+      result = { found: true, view: stopwatchView(stopwatch_id, r, DateTime.utc()) };
+    });
+    if (!result.found) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
+    return JSON.stringify({ status: "ok", stopwatch: result.view });
+  },
+  async stopwatch_list() {
+    const s = await loadState();
+    const now = DateTime.utc();
+    const stopwatches = Object.entries(s.stopwatches).map(([id, r]) => stopwatchView(id, r, now));
+    return JSON.stringify({ status: "ok", count: stopwatches.length, stopwatches });
+  },
   // alarm handlers added in Task 8
 };
