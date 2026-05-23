@@ -1,4 +1,9 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { DateTime } from "luxon";
+import { loadState, withState, makeId, type TimerRecord } from "./state.js";
+import { parseDuration } from "./parsers.js";
+import { getCurrentTime, convertTime } from "./time.js";
 
 export type ToolHandler = (raw: unknown) => Promise<string>;
 
@@ -172,5 +177,89 @@ export const TOOLS: Tool[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Helpers and Zod schemas
+// ---------------------------------------------------------------------------
+
+function nowIso(): string {
+  return DateTime.utc().toISO() ?? new Date().toISOString();
+}
+
+function timerView(id: string, r: TimerRecord, now: DateTime): {
+  timer_id: string; label: string | null; started_at: string; expires_at: string;
+  cancelled_at: string | null; status: string; remaining_seconds: number;
+} {
+  const expires = DateTime.fromISO(r.expires_at);
+  let status: string;
+  if (r.cancelled_at) status = "cancelled";
+  else if (now >= expires) status = "expired";
+  else status = "running";
+  const remainingSeconds = Math.floor(expires.diff(now, "seconds").seconds);
+  return {
+    timer_id: id, label: r.label, started_at: r.started_at, expires_at: r.expires_at,
+    cancelled_at: r.cancelled_at, status, remaining_seconds: remainingSeconds,
+  };
+}
+
+const TimerStartArgs = z.object({ duration: z.string(), label: z.string().nullish() });
+const TimerIdArgs = z.object({ timer_id: z.string() });
+
+// ---------------------------------------------------------------------------
 // HANDLERS map — populated incrementally in Tasks 6, 7, 8.
-export const HANDLERS: Record<string, ToolHandler> = {};
+// ---------------------------------------------------------------------------
+
+export const HANDLERS: Record<string, ToolHandler> = {
+  async get_current_time(raw) {
+    const { timezone } = z.object({ timezone: z.string().nullish() }).parse(raw);
+    return getCurrentTime(timezone ?? null);
+  },
+  async convert_time(raw) {
+    const { source_timezone, time, target_timezone } = z.object({
+      source_timezone: z.string(), time: z.string(), target_timezone: z.string(),
+    }).parse(raw);
+    return convertTime(source_timezone, time, target_timezone);
+  },
+  async timer_start(raw) {
+    const { duration, label } = TimerStartArgs.parse(raw);
+    let seconds: number;
+    try {
+      seconds = parseDuration(duration);
+    } catch (err) {
+      return JSON.stringify({ status: "error", error: (err as Error).message });
+    }
+    const startedAt = nowIso();
+    const expiresAt = DateTime.utc().plus({ seconds }).toISO() ?? new Date(Date.now() + seconds * 1000).toISOString();
+    const id = makeId();
+    await withState(async (s) => {
+      s.timers[id] = { label: label ?? null, started_at: startedAt, expires_at: expiresAt, cancelled_at: null };
+    });
+    return JSON.stringify({ status: "ok", timer_id: id, label: label ?? null, duration_seconds: seconds, expires_at: expiresAt });
+  },
+  async timer_check(raw) {
+    const { timer_id } = TimerIdArgs.parse(raw);
+    const s = await loadState();
+    const r = s.timers[timer_id];
+    if (!r) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
+    return JSON.stringify({ status: "ok", timer: timerView(timer_id, r, DateTime.utc()) });
+  },
+  async timer_list() {
+    const s = await loadState();
+    const now = DateTime.utc();
+    const timers = Object.entries(s.timers).map(([id, r]) => timerView(id, r, now));
+    return JSON.stringify({ status: "ok", count: timers.length, timers });
+  },
+  async timer_cancel(raw) {
+    const { timer_id } = TimerIdArgs.parse(raw);
+    let result: { found: boolean; view?: ReturnType<typeof timerView> } = { found: false };
+    await withState(async (s) => {
+      const r = s.timers[timer_id];
+      if (!r) return;
+      if (!r.cancelled_at) r.cancelled_at = nowIso();
+      result = { found: true, view: timerView(timer_id, r, DateTime.utc()) };
+    });
+    if (!result.found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
+    return JSON.stringify({ status: "ok", timer: result.view });
+  },
+  // stopwatch handlers added in Task 7
+  // alarm handlers added in Task 8
+};
