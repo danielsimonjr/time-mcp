@@ -1,6 +1,11 @@
 # time-mcp
 
-A FastMCP server providing time, timezone, timer, stopwatch, and alarm tools for Claude Code.
+A TypeScript MCP server providing time, timezone, timer, stopwatch, and alarm
+tools for Claude Code. Built on
+[`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk),
+[Luxon](https://moment.github.io/luxon/) for timezone/DST, and
+[`chrono-node`](https://github.com/wanasit/chrono) for natural-language alarm
+parsing.
 
 ## Tools (14)
 
@@ -22,14 +27,14 @@ A FastMCP server providing time, timezone, timer, stopwatch, and alarm tools for
 | Tool | Purpose |
 |------|---------|
 | `stopwatch_start` | Start counting up from now. Returns 8-char ID. |
-| `stopwatch_stop` | Stop a running stopwatch and return final elapsed. **Not idempotent** — double-stop is an error. |
+| `stopwatch_stop` | Stop a running stopwatch and return final elapsed. **Idempotent** — double-stop returns OK with the original `stopped_at`. |
 | `stopwatch_check` | Read elapsed without stopping. |
 | `stopwatch_list` | All stopwatches (running and stopped). |
 
 ### Alarm — fire at absolute time (4)
 | Tool | Purpose |
 |------|---------|
-| `alarm_set` | Set an alarm. Accepts natural language (`"in 4 hours"`, `"tomorrow at 9am"`) or absolute ISO (`"2030-12-31 23:59:00"`). Past times are rejected. Naive absolute strings interpreted as UTC. |
+| `alarm_set` | Set an alarm. Accepts natural language (`"in 4h"`, `"tomorrow at 9am"`, `"next Tuesday at 3pm"`) or absolute ISO (`"2030-12-31 23:59:00"`). Past times are rejected. Naive absolute strings interpreted as UTC. |
 | `alarm_list` | All alarms with computed status (`pending`/`fired`/`cancelled`) + seconds-until-fire. |
 | `alarm_check` | Look up a single alarm. |
 | `alarm_cancel` | Idempotent cancellation. |
@@ -42,34 +47,39 @@ A FastMCP server providing time, timezone, timer, stopwatch, and alarm tools for
   ```
   /loop 30s timer_check abc12345; if status is "expired", do X
   ```
-- **Optional notification hook.** A small `notify_hook` module ships in the
-  package. When wired as a `UserPromptSubmit` hook in
+- **Optional notification hook.** A separate CLI entry at `dist/notify-hook.js`
+  ships in the build. When wired as a `UserPromptSubmit` hook in
   `~/.claude/settings.json`, it injects emoji-prefixed notifications for
   timers/alarms that have fired since the last check (one-shot via
   `notified_at`). See **Notification hook** below.
 - **Persistent state** at `~/.time-mcp/state.json` (override via
-  `TIME_MCP_STATE_DIR` env var). Atomic writes via temp-file rename. UTF-8
-  throughout, so emoji and accented labels round-trip cleanly.
-- **All datetimes stored as UTC ISO 8601.** Timezone-aware everywhere
-  inside the server; conversion happens only at the rendering boundary.
-- **DST-correct**: `convert_time` rejects nonexistent wall-clock times
-  (DST spring-forward gap) rather than silently producing the
-  pre-transition offset.
+  `TIME_MCP_STATE_DIR` env var). Atomic writes via temp-file rename, with
+  retry-on-Windows-sharing-violation. UTF-8 throughout — emoji and accented
+  labels round-trip cleanly. Concurrent mutations serialized via an in-process
+  mutex. Corrupted state files are backed up to
+  `state.json.corrupted.<timestamp>` instead of silently discarded.
+- **Strict 1:1 JSON parity** with the prior Python implementation for valid
+  sequential calls. One observable behavior change in 0.2.0: `stopwatch_stop`
+  is now idempotent (matches `timer_cancel` and `alarm_cancel`).
+- **All datetimes stored as UTC ISO 8601.** Timezone-aware everywhere inside
+  the server; conversion happens only at the rendering boundary.
+- **DST-correct**: `convert_time` rejects nonexistent wall-clock times (DST
+  spring-forward gap) via a UTC round-trip check.
 
 ## Prerequisites
 
-- Python 3.10+
-- A virtualenv (recommended: `~/.venvs/time-mcp/`)
+- Node.js 24 or newer
 
 ## Installation
 
 ```bash
 git clone https://github.com/danielsimonjr/time-mcp.git
 cd time-mcp
-python -m venv ~/.venvs/time-mcp
-source ~/.venvs/time-mcp/bin/activate    # or .Scripts\activate on Windows
-pip install -e .
+npm install
+npm run build
 ```
+
+The build emits `dist/index.js` (MCP server) and `dist/notify-hook.js` (hook CLI).
 
 ## Register with Claude Code
 
@@ -79,20 +89,21 @@ Add to your MCP config (e.g., `~/.claude/local-marketplace/mcp-host/.mcp.json`):
 {
   "mcpServers": {
     "time-mcp": {
-      "command": "C:/Users/<you>/.venvs/time-mcp/Scripts/python.exe",
-      "args": ["-X", "utf8", "-m", "time_mcp_server"]
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:/path/to/time-mcp/dist/index.js"]
     }
   }
 }
 ```
 
-Then run `/reload-plugins` in Claude Code. Tools appear as
-`mcp__plugin_mcp-host_time-mcp__*`.
+Then run `/reload-plugins` in Claude Code. Tools appear under the
+`mcp__time-mcp__*` prefix.
 
 ## Notification hook (optional)
 
-Wire `notify_hook` into Claude Code so timer expirations and alarm fires
-appear as in-session context on your next prompt — no `/loop` polling
+Wire `dist/notify-hook.js` into Claude Code so timer expirations and alarm
+fires appear as in-session context on your next prompt — no `/loop` polling
 required for the basic "tell me when it fires" use case.
 
 Add to `~/.claude/settings.json`:
@@ -102,7 +113,13 @@ Add to `~/.claude/settings.json`:
   "hooks": {
     "UserPromptSubmit": [
       {
-        "command": "C:/Users/<you>/.venvs/time-mcp/Scripts/python.exe -m time_mcp_server.notify_hook"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/path/to/time-mcp/dist/notify-hook.js",
+            "timeout": 5
+          }
+        ]
       }
     ]
   }
@@ -112,28 +129,31 @@ Add to `~/.claude/settings.json`:
 On every prompt you submit (including `/loop` iterations), the hook reads
 `~/.time-mcp/state.json`, finds timers with status `expired` and alarms with
 status `fired` that haven't yet been notified, emits one notification per
-item to Claude as `additionalContext`, and marks them notified so they
-don't repeat. Output looks like:
+item to Claude as `additionalContext`, and marks them notified so they don't
+repeat. Output looks like:
 
 ```
 🔔 Timer 'deploy check' (wxZ0Sg3B) expired 4m ago
 🔔 Alarm 'meeting prep' (a8Kp2Lw9) fired 12s ago
 ```
 
-The hook is designed to fail silently — any unexpected error returns exit
-code 0 with no output, so a malformed state file or missing venv never
-blocks your prompt.
+The hook fails silently — any unexpected error returns exit code 0 with no
+output, so a malformed state file or missing build never blocks your prompt.
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest
+npm run typecheck   # tsc --noEmit
+npm test            # vitest run — 76 tests across 8 files
+npm run build       # emit dist/
 ```
 
-The test suite uses `monkeypatch.setenv("TIME_MCP_STATE_DIR", tmp_path)` to
-isolate state to a temporary directory per test, so it never touches your
-real `~/.time-mcp/state.json`.
+The test suite uses `process.env.TIME_MCP_STATE_DIR` (set to a per-test tmp
+dir) to isolate state, so it never touches your real `~/.time-mcp/state.json`.
+A mutex regression test races 50 concurrent `withState` callers and asserts no
+lost updates; a corrupted-state test verifies the `.corrupted.<timestamp>`
+backup behavior; a DST spring-forward test pins fake timers to 2026-03-08 and
+verifies the round-trip gap detection.
 
 ## License
 

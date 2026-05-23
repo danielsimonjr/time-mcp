@@ -5,7 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-05-23
+
+### Changed
+- **Rewrote in TypeScript** on `@modelcontextprotocol/sdk`. The Python
+  `time_mcp_server` package is retired; the server is now `node dist/index.js`,
+  and the UserPromptSubmit hook is now `node dist/notify-hook.js`. Tool JSON
+  output is byte-identical to the Python implementation for valid sequential
+  calls. The state file at `~/.time-mcp/state.json` is read in place — existing
+  timers/alarms/stopwatches survive the migration unchanged.
+- **`stopwatch_stop` is now idempotent.** Stopping an already-stopped stopwatch
+  returns `status: "ok"` with the original `stopped_at` (first-stop wins),
+  instead of `"Stopwatch '<id>' is already stopped"`. This is the only
+  observable behavior delta in the port. Aligns with `timer_cancel` and
+  `alarm_cancel`, which were already idempotent.
+
+### Fixed
+- **Concurrent state-mutation race.** Each tool's load → mutate → save cycle is
+  now serialized via a Promise-chain mutex (`withState`). The previous Python
+  implementation ran handlers concurrently via `asyncio.to_thread` and could
+  silently lose one update when two saves landed in close succession.
+- **Silent corrupted-state recovery.** When `state.json` fails to parse, the
+  bad file is now moved to `state.json.corrupted.<ISO-timestamp>` and a line
+  is logged to stderr before falling back to empty defaults. The Python
+  implementation silently discarded all timers/alarms/stopwatches.
+- **Stderr logging on save failures** — previously silent.
+
+### Added
+- `readOnlyHint` / `destructiveHint` annotations on all 14 tools (8 read-only,
+  6 mutating but non-destructive). FastMCP did not surface these; the
+  TypeScript MCP SDK does.
+
+### Removed
+- Python source: `src/time_mcp_server/`, `pyproject.toml`. Replaced by
+  `src/*.ts`, `package.json`, `tsconfig.json`, `vitest.config.ts`.
+
+### Tests
+- 76 vitest tests across 8 files: state persistence + mutex + corruption
+  recovery (10), parsers (14), time/DST (9), 4 handler suites (24), notify-hook
+  pure-function coverage (12), tool-definition annotations (6), `TOOLS↔HANDLERS`
+  symmetry smoke test (1).
+
+---
+
+## [0.1.0] - 2026-04-26 (Python — retroactively versioned)
+
+The complete Python implementation, never tagged as a release. All entries
+below describe the Python codebase that landed before the TypeScript rewrite.
+Note: in this Python version, `stopwatch_stop` was **not** idempotent (0.2.0
+changes this — see above).
 
 ### Added
 - `time_mcp_server.notify_hook` module — Claude Code `UserPromptSubmit`
