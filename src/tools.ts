@@ -1,8 +1,8 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { DateTime } from "luxon";
-import { loadState, withState, makeId, type TimerRecord, type StopwatchRecord } from "./state.js";
-import { parseDuration } from "./parsers.js";
+import { loadState, withState, makeId, type TimerRecord, type StopwatchRecord, type AlarmRecord } from "./state.js";
+import { parseDuration, parseAlarmTime } from "./parsers.js";
 import { getCurrentTime, convertTime } from "./time.js";
 
 export type ToolHandler = (raw: unknown) => Promise<string>;
@@ -220,6 +220,24 @@ function stopwatchView(id: string, r: StopwatchRecord, now: DateTime): {
 const StopwatchStartArgs = z.object({ label: z.string().nullish() });
 const StopwatchIdArgs = z.object({ stopwatch_id: z.string() });
 
+function alarmView(id: string, r: AlarmRecord, now: DateTime): {
+  alarm_id: string; label: string | null; fires_at: string; cancelled_at: string | null;
+  status: string; seconds_until_fire: number;
+} {
+  const fires = DateTime.fromISO(r.fires_at);
+  let status: string;
+  if (r.cancelled_at) status = "cancelled";
+  else if (now >= fires) status = "fired";
+  else status = "pending";
+  return {
+    alarm_id: id, label: r.label, fires_at: r.fires_at, cancelled_at: r.cancelled_at,
+    status, seconds_until_fire: Math.floor(fires.diff(now, "seconds").seconds),
+  };
+}
+
+const AlarmSetArgs = z.object({ when: z.string(), label: z.string().nullish() });
+const AlarmIdArgs = z.object({ alarm_id: z.string() });
+
 // ---------------------------------------------------------------------------
 // HANDLERS map — populated incrementally in Tasks 6, 7, 8.
 // ---------------------------------------------------------------------------
@@ -311,5 +329,48 @@ export const HANDLERS: Record<string, ToolHandler> = {
     const stopwatches = Object.entries(s.stopwatches).map(([id, r]) => stopwatchView(id, r, now));
     return JSON.stringify({ status: "ok", count: stopwatches.length, stopwatches });
   },
-  // alarm handlers added in Task 8
+  async alarm_set(raw) {
+    const { when, label } = AlarmSetArgs.parse(raw);
+    let fires: DateTime;
+    try {
+      fires = parseAlarmTime(when);
+    } catch (err) {
+      return JSON.stringify({ status: "error", error: (err as Error).message });
+    }
+    const now = DateTime.utc();
+    if (fires <= now) {
+      return JSON.stringify({ status: "error", error: `Alarm time '${when}' is in the past (${fires.toUTC().toISO()})` });
+    }
+    const firesAt = fires.toUTC().toISO() ?? "";
+    const id = makeId();
+    await withState(async (s) => {
+      s.alarms[id] = { label: label ?? null, fires_at: firesAt, cancelled_at: null };
+    });
+    return JSON.stringify({ status: "ok", alarm_id: id, label: label ?? null, fires_at: firesAt });
+  },
+  async alarm_check(raw) {
+    const { alarm_id } = AlarmIdArgs.parse(raw);
+    const s = await loadState();
+    const r = s.alarms[alarm_id];
+    if (!r) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
+    return JSON.stringify({ status: "ok", alarm: alarmView(alarm_id, r, DateTime.utc()) });
+  },
+  async alarm_list() {
+    const s = await loadState();
+    const now = DateTime.utc();
+    const alarms = Object.entries(s.alarms).map(([id, r]) => alarmView(id, r, now));
+    return JSON.stringify({ status: "ok", count: alarms.length, alarms });
+  },
+  async alarm_cancel(raw) {
+    const { alarm_id } = AlarmIdArgs.parse(raw);
+    let result: { found: boolean; view?: ReturnType<typeof alarmView> } = { found: false };
+    await withState(async (s) => {
+      const r = s.alarms[alarm_id];
+      if (!r) return;
+      if (!r.cancelled_at) r.cancelled_at = nowIso();
+      result = { found: true, view: alarmView(alarm_id, r, DateTime.utc()) };
+    });
+    if (!result.found) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
+    return JSON.stringify({ status: "ok", alarm: result.view });
+  },
 };
