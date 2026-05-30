@@ -292,8 +292,11 @@ export const HANDLERS: Record<string, ToolHandler> = {
     await withState(async (s) => {
       const r = s.timers[timer_id];
       if (!r) return;
-      if (!r.cancelled_at) r.cancelled_at = nowIso();
-      result = { found: true, view: timerView(timer_id, r, DateTime.utc()) };
+      const now = DateTime.utc();
+      const nowStr = now.toISO();
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.cancelled_at) r.cancelled_at = nowStr;
+      result = { found: true, view: timerView(timer_id, r, now) };
     });
     if (!result.found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
     return JSON.stringify({ status: "ok", timer: result.view });
@@ -321,8 +324,11 @@ export const HANDLERS: Record<string, ToolHandler> = {
     await withState(async (s) => {
       const r = s.stopwatches[stopwatch_id];
       if (!r) return;
-      if (!r.stopped_at) r.stopped_at = nowIso();
-      result = { found: true, view: stopwatchView(stopwatch_id, r, DateTime.utc()) };
+      const now = DateTime.utc();
+      const nowStr = now.toISO();
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.stopped_at) r.stopped_at = nowStr;
+      result = { found: true, view: stopwatchView(stopwatch_id, r, now) };
     });
     if (!result.found) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
     return JSON.stringify({ status: "ok", stopwatch: result.view });
@@ -373,8 +379,11 @@ export const HANDLERS: Record<string, ToolHandler> = {
     await withState(async (s) => {
       const r = s.alarms[alarm_id];
       if (!r) return;
-      if (!r.cancelled_at) r.cancelled_at = nowIso();
-      result = { found: true, view: alarmView(alarm_id, r, DateTime.utc()) };
+      const now = DateTime.utc();
+      const nowStr = now.toISO();
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.cancelled_at) r.cancelled_at = nowStr;
+      result = { found: true, view: alarmView(alarm_id, r, now) };
     });
     if (!result.found) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
     return JSON.stringify({ status: "ok", alarm: result.view });

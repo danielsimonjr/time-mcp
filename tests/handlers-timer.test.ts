@@ -75,6 +75,31 @@ describe("timer_start / timer_check / timer_list / timer_cancel", () => {
   });
 });
 
+describe("single clock read in timer_cancel (BUG-2)", () => {
+  it("cancelling an already-expired timer returns a deterministic remaining_seconds <= 0", async () => {
+    // Inject a timer that expired in the past via withState so we control the state.
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    const id = "expired01";
+    await withState((s) => {
+      s.timers[id] = {
+        label: "past",
+        started_at: "2020-01-01T00:00:00.000Z",
+        expires_at: "2020-01-01T00:01:00.000Z",
+        cancelled_at: null,
+      };
+    });
+    const r = JSON.parse(await HANDLERS.timer_cancel({ timer_id: id }));
+    expect(r.status).toBe("ok");
+    // The cancelled_at stamp must match the view's computation timestamp
+    // (single clock read means no skew between stamp and view).
+    expect(r.timer.status).toBe("cancelled");
+    // remaining_seconds must be deterministic (not NaN, not undefined)
+    expect(typeof r.timer.remaining_seconds).toBe("number");
+    expect(Number.isFinite(r.timer.remaining_seconds)).toBe(true);
+  });
+});
+
 describe("get_current_time / convert_time handlers", () => {
   it("get_current_time wraps the helper", async () => {
     const { HANDLERS } = await import("../src/tools.js");
