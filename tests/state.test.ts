@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -78,7 +78,7 @@ describe("loadState / saveState", () => {
     expect(s).toEqual({ timers: {}, stopwatches: {}, alarms: {} });
     const backup = readdirSync(tmp).find((f) => f.startsWith("state.json.corrupted."));
     expect(backup).toBeDefined();
-    expect(readFileSync(join(tmp, backup!), "utf8")).toBe("{not valid json");
+    expect(readFileSync(join(tmp, backup as string), "utf8")).toBe("{not valid json");
     expect(stderr.join("")).toMatch(/state\.json failed to parse/);
   });
 });
