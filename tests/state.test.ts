@@ -83,6 +83,49 @@ describe("loadState / saveState", () => {
   });
 });
 
+describe("Zod record validation (TYPE-1)", () => {
+  it("drops a timer missing expires_at and keeps the valid one", async () => {
+    writeFileSync(
+      join(tmp, "state.json"),
+      JSON.stringify({
+        timers: {
+          valid01: { label: "good", started_at: "2026-05-01T00:00:00.000Z", expires_at: "2026-05-01T01:00:00.000Z", cancelled_at: null },
+          bad0001: { label: "bad" },  // missing started_at, expires_at, cancelled_at
+        },
+        stopwatches: {},
+        alarms: {},
+      }),
+    );
+    const { loadState } = await import("../src/state.js");
+    const s = await loadState();
+    expect(Object.keys(s.timers)).toEqual(["valid01"]);
+    expect(s.timers.valid01.label).toBe("good");
+    expect(stderr.join("")).toMatch(/dropped.*bad0001|malformed.*bad0001/i);
+  });
+
+  it("timer_check returns no NaN for the surviving valid timer", async () => {
+    writeFileSync(
+      join(tmp, "state.json"),
+      JSON.stringify({
+        timers: {
+          valid02: { label: "check", started_at: "2026-05-01T00:00:00.000Z", expires_at: "2026-05-01T01:00:00.000Z", cancelled_at: null },
+          bad0002: { label: "bad", started_at: "2026-05-01T00:00:00.000Z" },  // missing expires_at
+        },
+        stopwatches: {},
+        alarms: {},
+      }),
+    );
+    const { HANDLERS } = await import("../src/tools.js");
+    const r = JSON.parse(await HANDLERS.timer_check({ timer_id: "valid02" }));
+    expect(r.status).toBe("ok");
+    expect(Number.isNaN(r.timer.remaining_seconds)).toBe(false);
+    expect(Number.isFinite(r.timer.remaining_seconds)).toBe(true);
+    // bad timer was silently dropped
+    const list = JSON.parse(await HANDLERS.timer_list({}));
+    expect(list.count).toBe(1);
+  });
+});
+
 describe("makeId", () => {
   it("returns an 8-char base64url string", async () => {
     const { makeId } = await import("../src/state.js");

@@ -2,27 +2,36 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 
-export interface TimerRecord {
-  label: string | null;
-  started_at: string;
-  expires_at: string;
-  cancelled_at: string | null;
-  notified_at?: string | null;
-}
+// ---------------------------------------------------------------------------
+// Zod schemas for record validation
+// ---------------------------------------------------------------------------
 
-export interface StopwatchRecord {
-  label: string | null;
-  started_at: string;
-  stopped_at: string | null;
-}
+const TimerRecordSchema = z.object({
+  label: z.string().nullable(),
+  started_at: z.string().min(1),
+  expires_at: z.string().min(1),
+  cancelled_at: z.string().nullable(),
+  notified_at: z.string().nullable().optional(),
+});
 
-export interface AlarmRecord {
-  label: string | null;
-  fires_at: string;
-  cancelled_at: string | null;
-  notified_at?: string | null;
-}
+const StopwatchRecordSchema = z.object({
+  label: z.string().nullable(),
+  started_at: z.string().min(1),
+  stopped_at: z.string().nullable(),
+});
+
+const AlarmRecordSchema = z.object({
+  label: z.string().nullable(),
+  fires_at: z.string().min(1),
+  cancelled_at: z.string().nullable(),
+  notified_at: z.string().nullable().optional(),
+});
+
+export type TimerRecord = z.infer<typeof TimerRecordSchema>;
+export type StopwatchRecord = z.infer<typeof StopwatchRecordSchema>;
+export type AlarmRecord = z.infer<typeof AlarmRecordSchema>;
 
 export interface State {
   timers: Record<string, TimerRecord>;
@@ -36,8 +45,24 @@ function defaultState(): State {
   return { timers: {}, stopwatches: {}, alarms: {} };
 }
 
-function assignKey<K extends keyof State>(s: State, k: K, v: State[K]): void {
-  s[k] = v;
+function parseRecords<T>(
+  raw: unknown,
+  schema: z.ZodType<T>,
+  kind: string,
+): Record<string, T> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, T> = {};
+  for (const [id, val] of Object.entries(raw as Record<string, unknown>)) {
+    const result = schema.safeParse(val);
+    if (result.success) {
+      out[id] = result.data;
+    } else {
+      process.stderr.write(
+        `time-mcp: dropped malformed ${kind} record '${id}': ${result.error.message}\n`,
+      );
+    }
+  }
+  return out;
 }
 
 function stateDir(): string {
@@ -75,12 +100,10 @@ export async function loadState(): Promise<State> {
   }
   const out = defaultState();
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    for (const key of DEFAULT_STATE_KEYS) {
-      const v = (parsed as Record<string, unknown>)[key];
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        assignKey(out, key, v as State[typeof key]);
-      }
-    }
+    const p = parsed as Record<string, unknown>;
+    out.timers = parseRecords(p[DEFAULT_STATE_KEYS[0]], TimerRecordSchema, "timer");
+    out.stopwatches = parseRecords(p[DEFAULT_STATE_KEYS[1]], StopwatchRecordSchema, "stopwatch");
+    out.alarms = parseRecords(p[DEFAULT_STATE_KEYS[2]], AlarmRecordSchema, "alarm");
   }
   return out;
 }
