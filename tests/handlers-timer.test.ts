@@ -112,12 +112,12 @@ describe("timer_list status coverage (TEST-2)", () => {
 });
 
 describe("timer missing-arg errors (TEST-5)", () => {
-  it("timer_check with no timer_id returns structured error (ZodError)", async () => {
+  it("timer_check with no timer_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.timer_check({})).rejects.toThrow();
   });
 
-  it("timer_cancel with no timer_id returns structured error (ZodError)", async () => {
+  it("timer_cancel with no timer_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.timer_cancel({})).rejects.toThrow();
   });

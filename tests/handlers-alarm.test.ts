@@ -103,12 +103,12 @@ describe("alarm_list status coverage (TEST-3)", () => {
 });
 
 describe("alarm missing-arg errors (TEST-5)", () => {
-  it("alarm_check with no alarm_id returns structured error (ZodError)", async () => {
+  it("alarm_check with no alarm_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.alarm_check({})).rejects.toThrow();
   });
 
-  it("alarm_cancel with no alarm_id returns structured error (ZodError)", async () => {
+  it("alarm_cancel with no alarm_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.alarm_cancel({})).rejects.toThrow();
   });

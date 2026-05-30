@@ -54,12 +54,12 @@ describe("stopwatch_list status coverage (TEST-4)", () => {
 });
 
 describe("stopwatch missing-arg errors (TEST-5)", () => {
-  it("stopwatch_check with no stopwatch_id returns structured error (ZodError)", async () => {
+  it("stopwatch_check with no stopwatch_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.stopwatch_check({})).rejects.toThrow();
   });
 
-  it("stopwatch_stop with no stopwatch_id returns structured error (ZodError)", async () => {
+  it("stopwatch_stop with no stopwatch_id throws ZodError (dispatcher wraps it as an error response)", async () => {
     const { HANDLERS } = await import("../src/tools.js");
     await expect(HANDLERS.stopwatch_stop({})).rejects.toThrow();
   });
