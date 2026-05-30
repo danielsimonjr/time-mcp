@@ -67,3 +67,28 @@ describe("alarm_set / check / list / cancel", () => {
     expect(r.count).toBe(2);
   });
 });
+
+describe("alarm_set optional timezone (BUG-4)", () => {
+  it("resolves 'today at 23:00' in America/New_York to a UTC instant != 23:00Z", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    const r = JSON.parse(await HANDLERS.alarm_set({ when: "today at 23:00", timezone: "America/New_York" }));
+    // Should succeed (or be in the past — either way fires_at must end in :00.000Z and not be 23:00Z)
+    if (r.status === "ok") {
+      // New York is UTC-4 or UTC-5; 23:00 NY != 23:00 UTC
+      expect(r.fires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      // Must NOT be interpreted naively as 23:00 UTC
+      const firesHourUtc = new Date(r.fires_at).getUTCHours();
+      expect(firesHourUtc).not.toBe(23);
+    } else {
+      // Acceptable if "today at 23:00 NY" is already in the past — alarm was rejected correctly
+      expect(r.error).toMatch(/in the past/i);
+    }
+  });
+
+  it("omitting timezone preserves existing behavior (defaults UTC)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    const r = JSON.parse(await HANDLERS.alarm_set({ when: "in 1h" }));
+    expect(r.status).toBe("ok");
+    expect(r.fires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});

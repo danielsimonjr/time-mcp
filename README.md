@@ -34,7 +34,7 @@ parsing.
 ### Alarm — fire at absolute time (4)
 | Tool | Purpose |
 |------|---------|
-| `alarm_set` | Set an alarm. Accepts natural language (`"in 4h"`, `"tomorrow at 9am"`, `"next Tuesday at 3pm"`) or absolute ISO (`"2030-12-31 23:59:00"`). Past times are rejected. Naive absolute strings interpreted as UTC. |
+| `alarm_set` | Set an alarm. Accepts natural language (`"in 4h"`, `"tomorrow at 9am"`, `"next Tuesday at 3pm"`) or absolute ISO (`"2030-12-31 23:59:00"`). Past times are rejected. Naive absolute strings and `today/tomorrow` patterns default to UTC; pass optional `timezone` (IANA name, e.g. `"America/New_York"`) to anchor them in a different zone. |
 | `alarm_list` | All alarms with computed status (`pending`/`fired`/`cancelled`) + seconds-until-fire. |
 | `alarm_check` | Look up a single alarm. |
 | `alarm_cancel` | Idempotent cancellation. |

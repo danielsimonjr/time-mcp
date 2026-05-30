@@ -133,13 +133,17 @@ export const TOOLS: Tool[] = [
   {
     name: "alarm_set",
     description:
-      "Set an alarm at an absolute or natural-language time ('in 4h', 'tomorrow at 9am', '2030-12-31 23:59:00'). Returns alarm_id.",
+      "Set an alarm at an absolute or natural-language time ('in 4h', 'tomorrow at 9am', '2030-12-31 23:59:00'). Returns alarm_id. Naive absolute strings and 'today/tomorrow' patterns are interpreted in the given timezone (optional; defaults to UTC).",
     annotations: { readOnlyHint: false, destructiveHint: false },
     inputSchema: {
       type: "object",
       properties: {
         when: { type: "string", description: "Natural language or absolute time." },
         label: { type: "string", description: "Optional human-readable name." },
+        timezone: {
+          type: "string",
+          description: "IANA timezone name to anchor naive times (e.g. 'America/New_York'). Omit to use UTC.",
+        },
       },
       required: ["when"],
       additionalProperties: false,
@@ -237,7 +241,7 @@ function alarmView(id: string, r: AlarmRecord, now: DateTime): {
   };
 }
 
-const AlarmSetArgs = z.object({ when: z.string(), label: z.string().nullish() });
+const AlarmSetArgs = z.object({ when: z.string(), label: z.string().nullish(), timezone: z.string().nullish() });
 const AlarmIdArgs = z.object({ alarm_id: z.string() });
 
 // ---------------------------------------------------------------------------
@@ -340,10 +344,10 @@ export const HANDLERS: Record<string, ToolHandler> = {
     return JSON.stringify({ status: "ok", count: stopwatches.length, stopwatches });
   },
   async alarm_set(raw) {
-    const { when, label } = AlarmSetArgs.parse(raw);
+    const { when, label, timezone } = AlarmSetArgs.parse(raw);
     let fires: DateTime;
     try {
-      fires = parseAlarmTime(when);
+      fires = parseAlarmTime(when, timezone ?? undefined);
     } catch (err) {
       return JSON.stringify({ status: "error", error: (err as Error).message });
     }
