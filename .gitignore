@@ -24,8 +24,8 @@ env/
 .DS_Store
 Thumbs.db
 
-# Local state (server writes here at runtime; user-specific)
-.time-mcp-state.json
+# Runtime state lives in ~/.time-mcp/state.json (outside the repo).
+# Override via TIME_MCP_STATE_DIR env var. Nothing to ignore here.
 
 # TypeScript build artifacts
 node_modules/
