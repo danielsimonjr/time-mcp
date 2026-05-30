@@ -182,7 +182,9 @@ export const TOOLS: Tool[] = [
 // ---------------------------------------------------------------------------
 
 function nowIso(): string {
-  return DateTime.utc().toISO() ?? new Date().toISOString();
+  const iso = DateTime.utc().toISO();
+  if (!iso) throw new Error("DateTime.utc().toISO() returned null — Luxon internal error");
+  return iso;
 }
 
 function timerView(id: string, r: TimerRecord, now: DateTime): {
@@ -262,7 +264,9 @@ export const HANDLERS: Record<string, ToolHandler> = {
       return JSON.stringify({ status: "error", error: (err as Error).message });
     }
     const startedAt = nowIso();
-    const expiresAt = DateTime.utc().plus({ seconds }).toISO() ?? new Date(Date.now() + seconds * 1000).toISOString();
+    const expiresAtRaw = DateTime.utc().plus({ seconds }).toISO();
+    if (!expiresAtRaw) throw new Error("DateTime.utc().plus().toISO() returned null — Luxon internal error");
+    const expiresAt = expiresAtRaw;
     const id = makeId();
     await withState(async (s) => {
       s.timers[id] = { label: label ?? null, started_at: startedAt, expires_at: expiresAt, cancelled_at: null };
@@ -341,7 +345,9 @@ export const HANDLERS: Record<string, ToolHandler> = {
     if (fires <= now) {
       return JSON.stringify({ status: "error", error: `Alarm time '${when}' is in the past (${fires.toUTC().toISO()})` });
     }
-    const firesAt = fires.toUTC().toISO() ?? "";
+    const firesAtRaw = fires.toUTC().toISO();
+    if (!firesAtRaw) throw new Error("fires.toUTC().toISO() returned null — Luxon internal error");
+    const firesAt = firesAtRaw;
     const id = makeId();
     await withState(async (s) => {
       s.alarms[id] = { label: label ?? null, fires_at: firesAt, cancelled_at: null };
