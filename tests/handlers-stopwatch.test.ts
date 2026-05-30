@@ -18,6 +18,53 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
+describe("stopwatch_list status coverage (TEST-4)", () => {
+  it("stopwatch_list shows a stopped stopwatch as status:'stopped'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.stopwatches["stopped1"] = {
+        label: "stopped-sw",
+        started_at: "2026-01-01T00:00:00.000Z",
+        stopped_at: "2026-01-01T00:05:00.000Z",
+      };
+    });
+    const r = JSON.parse(await HANDLERS.stopwatch_list({}));
+    const sw = r.stopwatches.find((x: { stopwatch_id: string }) => x.stopwatch_id === "stopped1");
+    expect(sw).toBeDefined();
+    expect(sw.status).toBe("stopped");
+    expect(sw.elapsed_seconds).toBe(300);
+  });
+
+  it("stopwatch_list shows a running stopwatch as status:'running'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.stopwatches["running1"] = {
+        label: "running-sw",
+        started_at: new Date(Date.now() - 10000).toISOString(),
+        stopped_at: null,
+      };
+    });
+    const r = JSON.parse(await HANDLERS.stopwatch_list({}));
+    const sw = r.stopwatches.find((x: { stopwatch_id: string }) => x.stopwatch_id === "running1");
+    expect(sw).toBeDefined();
+    expect(sw.status).toBe("running");
+  });
+});
+
+describe("stopwatch missing-arg errors (TEST-5)", () => {
+  it("stopwatch_check with no stopwatch_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.stopwatch_check({})).rejects.toThrow();
+  });
+
+  it("stopwatch_stop with no stopwatch_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.stopwatch_stop({})).rejects.toThrow();
+  });
+});
+
 describe("stopwatch_start / check / stop / list", () => {
   it("stopwatch_start returns ok with 8-char ID", async () => {
     const { HANDLERS } = await import("../src/tools.js");

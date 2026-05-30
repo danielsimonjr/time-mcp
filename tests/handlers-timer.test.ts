@@ -75,6 +75,54 @@ describe("timer_start / timer_check / timer_list / timer_cancel", () => {
   });
 });
 
+describe("timer_list status coverage (TEST-2)", () => {
+  it("timer_list shows a cancelled timer as status:'cancelled'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.timers["cancel01"] = {
+        label: "cancelled-timer",
+        started_at: "2026-01-01T00:00:00.000Z",
+        expires_at: "2999-01-01T00:00:00.000Z",
+        cancelled_at: "2026-01-01T00:01:00.000Z",
+      };
+    });
+    const r = JSON.parse(await HANDLERS.timer_list({}));
+    const t = r.timers.find((x: { timer_id: string }) => x.timer_id === "cancel01");
+    expect(t).toBeDefined();
+    expect(t.status).toBe("cancelled");
+  });
+
+  it("timer_list shows an expired timer as status:'expired'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.timers["expired02"] = {
+        label: "expired-timer",
+        started_at: "2020-01-01T00:00:00.000Z",
+        expires_at: "2020-01-01T00:01:00.000Z",
+        cancelled_at: null,
+      };
+    });
+    const r = JSON.parse(await HANDLERS.timer_list({}));
+    const t = r.timers.find((x: { timer_id: string }) => x.timer_id === "expired02");
+    expect(t).toBeDefined();
+    expect(t.status).toBe("expired");
+  });
+});
+
+describe("timer missing-arg errors (TEST-5)", () => {
+  it("timer_check with no timer_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.timer_check({})).rejects.toThrow();
+  });
+
+  it("timer_cancel with no timer_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.timer_cancel({})).rejects.toThrow();
+  });
+});
+
 describe("single clock read in timer_cancel (BUG-2)", () => {
   it("cancelling an already-expired timer returns a deterministic remaining_seconds <= 0", async () => {
     // Inject a timer that expired in the past via withState so we control the state.

@@ -68,6 +68,52 @@ describe("alarm_set / check / list / cancel", () => {
   });
 });
 
+describe("alarm_list status coverage (TEST-3)", () => {
+  it("alarm_list shows a past alarm as status:'fired'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.alarms["fired001"] = {
+        label: "past-alarm",
+        fires_at: "2020-01-01T00:00:00.000Z",
+        cancelled_at: null,
+      };
+    });
+    const r = JSON.parse(await HANDLERS.alarm_list({}));
+    const a = r.alarms.find((x: { alarm_id: string }) => x.alarm_id === "fired001");
+    expect(a).toBeDefined();
+    expect(a.status).toBe("fired");
+  });
+
+  it("alarm_list shows a cancelled alarm as status:'cancelled'", async () => {
+    const { withState } = await import("../src/state.js");
+    const { HANDLERS } = await import("../src/tools.js");
+    await withState((s) => {
+      s.alarms["cancel02"] = {
+        label: "cancelled-alarm",
+        fires_at: "2999-01-01T00:00:00.000Z",
+        cancelled_at: "2026-01-01T00:00:00.000Z",
+      };
+    });
+    const r = JSON.parse(await HANDLERS.alarm_list({}));
+    const a = r.alarms.find((x: { alarm_id: string }) => x.alarm_id === "cancel02");
+    expect(a).toBeDefined();
+    expect(a.status).toBe("cancelled");
+  });
+});
+
+describe("alarm missing-arg errors (TEST-5)", () => {
+  it("alarm_check with no alarm_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.alarm_check({})).rejects.toThrow();
+  });
+
+  it("alarm_cancel with no alarm_id returns structured error (ZodError)", async () => {
+    const { HANDLERS } = await import("../src/tools.js");
+    await expect(HANDLERS.alarm_cancel({})).rejects.toThrow();
+  });
+});
+
 describe("alarm_set optional timezone (BUG-4)", () => {
   it("resolves 'today at 23:00' in America/New_York to a UTC instant != 23:00Z", async () => {
     const { HANDLERS } = await import("../src/tools.js");

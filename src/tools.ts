@@ -292,7 +292,8 @@ export const HANDLERS: Record<string, ToolHandler> = {
   },
   async timer_cancel(raw) {
     const { timer_id } = TimerIdArgs.parse(raw);
-    let result: { found: boolean; view?: ReturnType<typeof timerView> } = { found: false };
+    let found = false;
+    let view: ReturnType<typeof timerView> | null = null;
     await withState(async (s) => {
       const r = s.timers[timer_id];
       if (!r) return;
@@ -300,10 +301,11 @@ export const HANDLERS: Record<string, ToolHandler> = {
       const nowStr = now.toISO();
       if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
       if (!r.cancelled_at) r.cancelled_at = nowStr;
-      result = { found: true, view: timerView(timer_id, r, now) };
+      found = true;
+      view = timerView(timer_id, r, now);
     });
-    if (!result.found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
-    return JSON.stringify({ status: "ok", timer: result.view });
+    if (!found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
+    return JSON.stringify({ status: "ok", timer: view });
   },
   async stopwatch_start(raw) {
     const { label } = StopwatchStartArgs.parse(raw);
@@ -324,7 +326,8 @@ export const HANDLERS: Record<string, ToolHandler> = {
   // *** Spec §9.2: idempotent stop. Differs from Python — first-stop wins. ***
   async stopwatch_stop(raw) {
     const { stopwatch_id } = StopwatchIdArgs.parse(raw);
-    let result: { found: boolean; view?: ReturnType<typeof stopwatchView> } = { found: false };
+    let found = false;
+    let view: ReturnType<typeof stopwatchView> | null = null;
     await withState(async (s) => {
       const r = s.stopwatches[stopwatch_id];
       if (!r) return;
@@ -332,10 +335,11 @@ export const HANDLERS: Record<string, ToolHandler> = {
       const nowStr = now.toISO();
       if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
       if (!r.stopped_at) r.stopped_at = nowStr;
-      result = { found: true, view: stopwatchView(stopwatch_id, r, now) };
+      found = true;
+      view = stopwatchView(stopwatch_id, r, now);
     });
-    if (!result.found) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
-    return JSON.stringify({ status: "ok", stopwatch: result.view });
+    if (!found) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
+    return JSON.stringify({ status: "ok", stopwatch: view });
   },
   async stopwatch_list() {
     const s = await loadState();
@@ -379,7 +383,8 @@ export const HANDLERS: Record<string, ToolHandler> = {
   },
   async alarm_cancel(raw) {
     const { alarm_id } = AlarmIdArgs.parse(raw);
-    let result: { found: boolean; view?: ReturnType<typeof alarmView> } = { found: false };
+    let found = false;
+    let view: ReturnType<typeof alarmView> | null = null;
     await withState(async (s) => {
       const r = s.alarms[alarm_id];
       if (!r) return;
@@ -387,9 +392,10 @@ export const HANDLERS: Record<string, ToolHandler> = {
       const nowStr = now.toISO();
       if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
       if (!r.cancelled_at) r.cancelled_at = nowStr;
-      result = { found: true, view: alarmView(alarm_id, r, now) };
+      found = true;
+      view = alarmView(alarm_id, r, now);
     });
-    if (!result.found) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
-    return JSON.stringify({ status: "ok", alarm: result.view });
+    if (!found) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
+    return JSON.stringify({ status: "ok", alarm: view });
   },
 };
