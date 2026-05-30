@@ -144,7 +144,8 @@ output, so a malformed state file or missing build never blocks your prompt.
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest run — 76 tests across 8 files
+npm run lint        # eslint src tests --max-warnings 0
+npm test            # vitest run — 92 tests across 9 files
 npm run build       # emit dist/
 ```
 

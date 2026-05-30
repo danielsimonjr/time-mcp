@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`nowIso()` UTC hazard** — the `?? new Date().toISOString()` fallback returned
+  local time (corrupting UTC comparisons) and was unreachable. Replaced with an
+  explicit null-check that throws. Same pattern fixed in `timer_start` and
+  `alarm_set`.
+- **Single clock read per cancel/stop handler** — `timer_cancel`, `alarm_cancel`,
+  and `stopwatch_stop` previously made two independent `DateTime.utc()` calls: one
+  to stamp `cancelled_at`/`stopped_at`, another to build the returned view. A race
+  could produce a view inconsistent with the persisted timestamp. Now a single
+  `DateTime.utc()` is captured and used for both.
+- **Zod validation of persisted records** — malformed records (missing required
+  fields like `expires_at`) were loaded with `as` casts, causing
+  `DateTime.fromISO(undefined)` → NaN in `remaining_seconds`/`elapsed_seconds`.
+  `loadState()` now validates each record via Zod `safeParse`, dropping and logging
+  malformed entries instead of propagating NaN.
+
+### Added
+- **`eslint` flat-config lint gate** — `npm run lint` runs eslint 9 +
+  `typescript-eslint` recommended over `src/` and `tests/`, `--max-warnings 0`.
+  Rules: `no-non-null-assertion` and `no-explicit-any` as errors.
+- **Optional `timezone` param for `alarm_set`** — pass an IANA zone name (e.g.
+  `"America/New_York"`) to anchor naive times like `"today at 23:00"` in a
+  specific timezone instead of UTC. Fully additive; omitting it preserves
+  existing behavior.
+- **Coverage tests** — timer_list/alarm_list/stopwatch_list status paths
+  (`cancelled`, `expired`, `fired`, `stopped`); missing-required-arg error
+  paths for check/cancel/stop handlers.
+
+### Removed
+- **Stale Python test files** (`tests/__init__.py`, `test_alarm.py`,
+  `test_notify_hook.py`, `test_parsers.py`, `test_state.py`,
+  `test_stopwatch.py`, `test_time.py`, `test_timer.py`, `__pycache__/`)
+  — left over from the pre-0.2.0 Python implementation.
+
+### Changed
+- **Conversion docs tracked** — `docs/superpowers/plans/` and
+  `docs/superpowers/specs/` added to version control.
+- `.gitignore` note corrected: runtime state lives at `~/.time-mcp/state.json`
+  (outside the repo); the old `.time-mcp-state.json` entry was wrong.
+
+### Tests
+- 92 vitest tests across 9 files (up from 75 across 9 at start of this pass).
+
+---
+
 ## [0.2.0] - 2026-05-23
 
 ### Changed
