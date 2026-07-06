@@ -31,3 +31,6 @@ Thumbs.db
 node_modules/
 *.tsbuildinfo
 .vitest/
+
+# SDD scratch/ledger
+.superpowers/
