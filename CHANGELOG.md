@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   malformed entries instead of propagating NaN.
 
 ### Added
+- **Companion skill** — `time` (`time-mcp:time`, `/time`), a judgment layer
+  over the 14 tools that steers between timer/stopwatch/alarm families and
+  keeps the `_id`-based check/cancel/list flow correct. Ships at
+  `skills/time/SKILL.md`.
 - **`eslint` flat-config lint gate** — `npm run lint` runs eslint 9 +
   `typescript-eslint` recommended over `src/` and `tests/`, `--max-warnings 0`.
   Rules: `no-non-null-assertion` and `no-explicit-any` as errors.

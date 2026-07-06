@@ -66,6 +66,15 @@ parsing.
 - **DST-correct**: `convert_time` rejects nonexistent wall-clock times (DST
   spring-forward gap) via a UTC round-trip check.
 
+## Companion skill
+
+This plugin ships a companion skill, `time` (`time-mcp:time`, slash trigger
+`/time`), at `skills/time/SKILL.md`. It's a judgment layer over the 14 tools
+above — no new tools of its own — that steers you toward the right family
+(timer vs. stopwatch vs. alarm) and keeps the `_id`-based check/cancel/list
+flow correct. All operations it covers are safe (read-only or ephemeral
+timers), so it carries no confirmation gates.
+
 ## Prerequisites
 
 - Node.js 24 or newer
