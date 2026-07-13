@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Windows CI leg.** CI ran on `ubuntu-latest` only — but Windows is the *production*
+  platform for this MCP server (it runs on Daniel's Windows box), so CI had never once
+  tested the OS the server actually ships on. The `build` job now runs a
+  `[ubuntu-latest, windows-latest]` matrix.
+
 ### Fixed
 - **`nowIso()` UTC hazard** — the `?? new Date().toISOString()` fallback returned
   local time (corrupting UTC comparisons) and was unreachable. Replaced with an
