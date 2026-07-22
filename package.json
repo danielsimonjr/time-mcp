@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "chrono-node": "^2.10.0",
+    "chrono-node": "^2.10.1",
     "luxon": "^3.4.0",
     "zod": "^4.0.0"
   },
