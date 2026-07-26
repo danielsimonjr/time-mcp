@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[ubuntu-latest, windows-latest]` matrix.
 
 ### Fixed
+- **`UserPromptSubmit` hook died with `MODULE_NOT_FOUND` on a fresh clone — the hook was
+  wired to a gitignored build artifact.** `~/.claude/settings.json` ran
+  `node .../time-mcp/dist/notify-hook.js`, but `dist/` is in `.gitignore`, so it never
+  arrived with the EVO-X2 migration (`node_modules` was absent too — the repo had never
+  been built on that machine). Every prompt submission threw
+  `Error: Cannot find module ... at node:internal/modules/cjs/loader:1517`. The MCP
+  *server* was immune because `.mcp.json` launches the **committed** `bundle/index.mjs`;
+  only the hook depended on an artifact that cannot survive `git clone`.
+  - Added **`bundle/notify-hook.mjs`** — a committed, self-contained esbuild bundle
+    (764 kB), the same durability pattern the server already used. Verified to run with
+    `node_modules` renamed away.
+  - Added reproducible **`npm run bundle` / `bundle:server` / `bundle:hook`** scripts and
+    pinned **`esbuild` 0.28.1** as a devDependency. Both bundles had been produced by
+    hand-typed `npx esbuild` invocations recorded nowhere in the repo; now anyone can
+    regenerate them. (`bundle:server` verified to emit a bundle that completes an MCP
+    `initialize` handshake; `bundle/index.mjs` itself is left unchanged here to keep this
+    commit atomic.)
+  - **README corrected** — it documented `dist/notify-hook.js` as *the* hook path in three
+    places, which is the upstream cause of this class of failure. It now points at the
+    bundle and states why, and the Installation section documents that `dist/` is
+    gitignored and needs `node_modules`.
 - **`nowIso()` UTC hazard** — the `?? new Date().toISOString()` fallback returned
   local time (corrupting UTC comparisons) and was unreachable. Replaced with an
   explicit null-check that throws. Same pattern fixed in `timer_start` and

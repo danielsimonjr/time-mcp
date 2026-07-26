@@ -10,6 +10,9 @@
   },
   "scripts": {
     "build": "tsc",
+    "bundle": "npm run bundle:server && npm run bundle:hook",
+    "bundle:server": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=bundle/index.mjs",
+    "bundle:hook": "esbuild src/notify-hook.ts --bundle --platform=node --format=esm --target=node24 --outfile=bundle/notify-hook.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests --max-warnings 0",
     "test": "vitest run",
@@ -25,6 +28,7 @@
     "@eslint/js": "^10.0.1",
     "@types/luxon": "^3.7.2",
     "@types/node": "^26.1.1",
+    "esbuild": "0.28.1",
     "eslint": "^10.7.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.65.0",

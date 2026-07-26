@@ -47,11 +47,12 @@ parsing.
   ```
   /loop 30s timer_check abc12345; if status is "expired", do X
   ```
-- **Optional notification hook.** A separate CLI entry at `dist/notify-hook.js`
-  ships in the build. When wired as a `UserPromptSubmit` hook in
-  `~/.claude/settings.json`, it injects emoji-prefixed notifications for
-  timers/alarms that have fired since the last check (one-shot via
-  `notified_at`). See **Notification hook** below.
+- **Optional notification hook.** A separate CLI entry, shipped two ways:
+  `bundle/notify-hook.mjs` (committed, self-contained — **use this one**) and
+  `dist/notify-hook.js` (emitted by `npm run build`, requires `node_modules`).
+  When wired as a `UserPromptSubmit` hook in `~/.claude/settings.json`, it
+  injects emoji-prefixed notifications for timers/alarms that have fired since
+  the last check (one-shot via `notified_at`). See **Notification hook** below.
 - **Persistent state** at `~/.time-mcp/state.json` (override via
   `TIME_MCP_STATE_DIR` env var). Atomic writes via temp-file rename, with
   retry-on-Windows-sharing-violation. UTF-8 throughout — emoji and accented
@@ -90,6 +91,20 @@ npm run build
 
 The build emits `dist/index.js` (MCP server) and `dist/notify-hook.js` (hook CLI).
 
+`dist/` is **gitignored** — it does not survive a fresh clone, and it needs
+`node_modules` present at runtime. For anything that must keep working across
+clones and machine migrations (the plugin's MCP server, and the notification
+hook), use the committed self-contained bundles instead:
+
+```bash
+npm run bundle          # both, via esbuild
+npm run bundle:server   # -> bundle/index.mjs
+npm run bundle:hook     # -> bundle/notify-hook.mjs
+```
+
+These are checked into the repo and require neither a build step nor
+`node_modules`. Regenerate and commit them whenever `src/` changes.
+
 ## Register with Claude Code
 
 Add to your MCP config (e.g., `~/.claude/local-marketplace/mcp-host/.mcp.json`):
@@ -111,7 +126,7 @@ Then run `/reload-plugins` in Claude Code. Tools appear under the
 
 ## Notification hook (optional)
 
-Wire `dist/notify-hook.js` into Claude Code so timer expirations and alarm
+Wire `bundle/notify-hook.mjs` into Claude Code so timer expirations and alarm
 fires appear as in-session context on your next prompt — no `/loop` polling
 required for the basic "tell me when it fires" use case.
 
@@ -125,7 +140,7 @@ Add to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/path/to/time-mcp/dist/notify-hook.js",
+            "command": "node C:/path/to/time-mcp/bundle/notify-hook.mjs",
             "timeout": 5
           }
         ]
@@ -134,6 +149,12 @@ Add to `~/.claude/settings.json`:
   }
 }
 ```
+
+> **Point the hook at `bundle/notify-hook.mjs`, not `dist/notify-hook.js`.**
+> `dist/` is gitignored and needs `node_modules`, so a hook wired to it fails
+> with `MODULE_NOT_FOUND` (`node:internal/modules/cjs/loader`) on any fresh
+> clone or machine migration — the build output simply isn't there. The bundle
+> is committed and self-contained, so it works immediately after `git clone`.
 
 On every prompt you submit (including `/loop` iterations), the hook reads
 `~/.time-mcp/state.json`, finds timers with status `expired` and alarms with
