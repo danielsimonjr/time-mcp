@@ -30,6 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`npm view typescript-eslint peerDependencies.typescript`).
 
 ### Fixed
+
+- **Forward-compat with TypeScript 6: `compilerOptions.types` is now explicit (`["node"]`).**
+  Under TS 6, `tsc --noEmit` failed with 22 errors — `TS2591: Cannot find name 'process'`
+  and `TS2503: Cannot find namespace 'NodeJS'` — even though `@types/node` 26.1.1 was
+  installed *and* visibly in the program (21 files, zero errors with `skipLibCheck` off).
+  TypeScript 6 no longer auto-includes `@types/*` packages as a source of **global**
+  declarations: the `node:*` imports still resolved as modules, but the ambient globals
+  were never applied. Listing `node` explicitly restores them.
+  - Measured, not guessed: `types: ["node"]` → **0 errors**; `module/moduleResolution:
+    nodenext` → 22; `node18` → 22; unchanged baseline → 22.
+  - Verified green under **both** TS 5.9.3 (currently pinned) and TS 6.0.3 —
+    typecheck, lint (`--max-warnings 0`), 92/92 tests, and build.
+  - Also good hygiene independent of TS 6: an explicit `types` list narrows the global
+    scope and shortens compile time.
+
 - **`UserPromptSubmit` hook died with `MODULE_NOT_FOUND` on a fresh clone — the hook was
   wired to a gitignored build artifact.** `~/.claude/settings.json` ran
   `node .../time-mcp/dist/notify-hook.js`, but `dist/` is in `.gitignore`, so it never
