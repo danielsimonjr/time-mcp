@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tested the OS the server actually ships on. The `build` job now runs a
   `[ubuntu-latest, windows-latest]` matrix.
 
+### Changed
+
+- **Dependabot now ignores TypeScript `>=7.0.0`, ending a permanently-red CI branch.**
+  PR #12 (`typescript` 5.9.3 → 7.0.2) had failed CI on every run since 2026-07-15. The
+  cause was *not* TS 7 breaking our code — CI never reached `typecheck`. It died in
+  `npm ci` with `ERESOLVE`, because `typescript-eslint@8.65.0` (and every published
+  `8.65.1-alpha`) declares `peer typescript ">=4.8.4 <6.1.0"`. No stable
+  `typescript-eslint` 9.x exists yet, so the bump is simply not installable.
+  Verified locally: TS 7.0.2 conflicts, TS 6.0.3 resolves cleanly.
+  - Deliberately **not** fixed with `--legacy-peer-deps`/`--force`, which would have
+    installed a knowingly-broken lint toolchain to turn the check green.
+  - Scoped to `>=7.0.0` rather than "all majors" so TS 6.x upgrades still flow.
+  - The ignore entry documents its own removal trigger
+    (`npm view typescript-eslint peerDependencies.typescript`).
+
 ### Fixed
 - **`UserPromptSubmit` hook died with `MODULE_NOT_FOUND` on a fresh clone — the hook was
   wired to a gitignored build artifact.** `~/.claude/settings.json` ran

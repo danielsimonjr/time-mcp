@@ -7,6 +7,22 @@ updates:
     commit-message:
       prefix: chore
     labels: [dependencies, npm]
+    ignore:
+      # TypeScript 7.x is blocked by the lint toolchain, not by our code.
+      # typescript-eslint@8.65.0 — and every published 8.65.1-alpha — declares
+      #   peer typescript ">=4.8.4 <6.1.0"
+      # so TS 7 fails `npm ci` with ERESOLVE before CI can even typecheck. PR #12
+      # (bump typescript 5.9.3 -> 7.0.2) was therefore permanently red from
+      # 2026-07-15 and was closed rather than merged with --legacy-peer-deps,
+      # which would have installed a knowingly broken lint toolchain.
+      #
+      # Scoped to >=7 on purpose: TS 6.0.x satisfies that peer range (verified),
+      # so 6.x upgrades still flow through normally.
+      #
+      # REMOVE THIS ENTRY once a typescript-eslint release admits TS >= 7 —
+      # check with:  npm view typescript-eslint peerDependencies.typescript
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
 
   - package-ecosystem: github-actions
     directory: /
