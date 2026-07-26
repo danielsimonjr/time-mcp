@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { createRequire as __createRequire } from 'node:module';import { fileURLToPath as __fileURLToPath } from 'node:url';import { dirname as __dirnameOf } from 'node:path';const require = __createRequire(import.meta.url);const __filename = __fileURLToPath(import.meta.url);const __dirname = __dirnameOf(__filename);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -3770,6 +3769,7 @@ var require_fast_uri = __commonJS({
       return uriTokens.join("");
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
+    var AUTHORITY_PREFIX = /^(?:[^#/:?]+:)?\/\/([^/?#]*)/;
     function getParseError(parsed, matches) {
       if (matches[2] !== void 0 && parsed.path && parsed.path[0] !== "/") {
         return 'URI path must start with "/" when authority is present.';
@@ -3798,6 +3798,11 @@ var require_fast_uri = __commonJS({
         } else {
           uri = "//" + uri;
         }
+      }
+      const authorityMatch = uri.match(AUTHORITY_PREFIX);
+      if (authorityMatch !== null && authorityMatch[1].indexOf("\\") !== -1) {
+        parsed.error = "URI authority must not contain a literal backslash.";
+        malformedAuthorityOrPort = true;
       }
       const matches = uri.match(URI_PARSE);
       if (matches) {
@@ -3842,7 +3847,7 @@ var require_fast_uri = __commonJS({
         if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
           if (parsed.host && (options.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
             try {
-              parsed.host = URL.domainToASCII(parsed.host.toLowerCase());
+              parsed.host = new URL("http://" + parsed.host).hostname;
             } catch (e) {
               parsed.error = parsed.error || "Host's domain name can not be converted to ASCII: " + e;
             }
@@ -31263,7 +31268,7 @@ function friendlyDateTime(dateTimeish) {
   }
 }
 
-// dist/state.js
+// src/state.ts
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -31291,16 +31296,17 @@ function defaultState() {
   return { timers: {}, stopwatches: {}, alarms: {} };
 }
 function parseRecords(raw, schema, kind) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw))
-    return {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out = {};
   for (const [id, val] of Object.entries(raw)) {
     const result = schema.safeParse(val);
     if (result.success) {
       out[id] = result.data;
     } else {
-      process.stderr.write(`time-mcp: dropped malformed ${kind} record '${id}': ${result.error.message}
-`);
+      process.stderr.write(
+        `time-mcp: dropped malformed ${kind} record '${id}': ${result.error.message}
+`
+      );
     }
   }
   return out;
@@ -32020,16 +32026,17 @@ var ParsingComponents = class _ParsingComponents {
     return this.isCertain("month") && !this.isCertain("year");
   }
   isValidDate() {
-    const date5 = this.dateWithoutTimezoneAdjustment();
-    if (date5.getFullYear() !== this.get("year"))
+    const date5 = new Date(Date.UTC(this.get("year"), this.get("month") - 1, this.get("day"), this.get("hour"), this.get("minute"), this.get("second"), this.get("millisecond")));
+    date5.setUTCFullYear(this.get("year"));
+    if (date5.getUTCFullYear() !== this.get("year"))
       return false;
-    if (date5.getMonth() !== this.get("month") - 1)
+    if (date5.getUTCMonth() !== this.get("month") - 1)
       return false;
-    if (date5.getDate() !== this.get("day"))
+    if (date5.getUTCDate() !== this.get("day"))
       return false;
-    if (this.get("hour") != null && date5.getHours() != this.get("hour"))
+    if (this.get("hour") != null && date5.getUTCHours() != this.get("hour"))
       return false;
-    if (this.get("minute") != null && date5.getMinutes() != this.get("minute"))
+    if (this.get("minute") != null && date5.getUTCMinutes() != this.get("minute"))
       return false;
     return true;
   }
@@ -32041,9 +32048,13 @@ var ParsingComponents = class _ParsingComponents {
             reference: ${JSON.stringify(this.reference)}]`;
   }
   date() {
-    const date5 = this.dateWithoutTimezoneAdjustment();
-    const timezoneAdjustment = this.reference.getSystemTimezoneAdjustmentMinute(date5, this.get("timezoneOffset"));
-    return new Date(date5.getTime() + timezoneAdjustment * 6e4);
+    const timezoneOffset = this.get("timezoneOffset") ?? this.reference.timezoneOffset;
+    if (timezoneOffset === null || timezoneOffset === void 0) {
+      return this.dateWithoutTimezoneAdjustment();
+    }
+    const date5 = new Date(Date.UTC(this.get("year"), this.get("month") - 1, this.get("day"), this.get("hour"), this.get("minute"), this.get("second"), this.get("millisecond")));
+    date5.setUTCFullYear(this.get("year"));
+    return new Date(date5.getTime() - timezoneOffset * 6e4);
   }
   addTag(tag) {
     this._tags.add(tag);
@@ -32369,7 +32380,7 @@ function parseOrdinalNumberPattern(match2) {
   num = num.replace(/(?:st|nd|rd|th)$/i, "");
   return parseInt(num);
 }
-var YEAR_PATTERN = `(?:[1-9][0-9]{0,3}\\s{0,2}(?:BE|AD|BC|BCE|CE)|[1-9][0-9]{3}|[5-9][0-9]|2[0-5])`;
+var YEAR_PATTERN = `(?:[1-9][0-9]{0,3}\\s{0,2}(?:BE|AD|BC|BCE|CE)|[1-9][0-9]{3}|[0-9]{2}(?!\\w|:\\d|\\s+(?:am|pm|o\\s*clock|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)))`;
 function parseYear(match2) {
   if (/BE/i.test(match2)) {
     match2 = match2.replace(/BE/i, "");
@@ -32475,7 +32486,7 @@ var ENTimeUnitWithinFormatParser = class extends AbstractParserWithWordBoundaryC
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENMonthNameLittleEndianParser.js
-var PATTERN = new RegExp(`(?:on\\s{0,3})?(${ORDINAL_NUMBER_PATTERN})(?:\\s{0,3}(?:to|\\-|\\\u2013|until|through|till)?\\s{0,3}(${ORDINAL_NUMBER_PATTERN}))?(?:-|/|\\s{0,3}(?:of)?\\s{0,3})(${matchAnyPattern(MONTH_DICTIONARY)})(?:(?:-|/|,?\\s{0,3})(${YEAR_PATTERN}(?!\\w)))?(?=\\W|$)`, "i");
+var PATTERN = new RegExp(`(?:on\\s{0,3})?(${ORDINAL_NUMBER_PATTERN})(?:\\s{0,3}(?:to|\\-|\\\u2013|until|through|till)\\s{0,3}(${ORDINAL_NUMBER_PATTERN}))?(?:-|/|\\s{0,3}(?:of)?\\s{0,3})(${matchAnyPattern(MONTH_DICTIONARY)})(?:(?:-|/|,?\\s{0,3})(${YEAR_PATTERN}(?!\\w)))?(?=\\W|$)`, "i");
 var DATE_GROUP = 1;
 var DATE_TO_GROUP = 2;
 var MONTH_NAME_GROUP = 3;
@@ -32532,7 +32543,7 @@ var ENMonthNameMiddleEndianParser = class extends AbstractParserWithWordBoundary
       return null;
     }
     if (this.shouldSkipYearLikeDate) {
-      if (!match2[DATE_TO_GROUP2] && !match2[YEAR_GROUP2] && match2[DATE_GROUP2].match(/^2[0-5]$/)) {
+      if (!match2[DATE_TO_GROUP2] && !match2[YEAR_GROUP2] && match2[DATE_GROUP2].match(/^\d{2}$/)) {
         return null;
       }
     }
@@ -32627,16 +32638,38 @@ var ENYearMonthDayParser = class extends AbstractParserWithWordBoundaryChecking 
   }
 };
 
-// node_modules/chrono-node/dist/esm/locales/en/parsers/ENSlashMonthFormatParser.js
-var PATTERN5 = new RegExp("([0-9]|0[1-9]|1[012])/([0-9]{4})", "i");
-var MONTH_GROUP = 1;
-var YEAR_GROUP4 = 2;
-var ENSlashMonthFormatParser = class extends AbstractParserWithWordBoundaryChecking {
+// node_modules/chrono-node/dist/esm/locales/en/parsers/ENYearMonthNameParser.js
+var YEAR_PATTERN2 = `(?:[1-9][0-9]{0,3}\\s{0,2}(?:BE|AD|BC|BCE|CE)|[1-9][0-9]{3})`;
+var PATTERN5 = new RegExp(`(${YEAR_PATTERN2})(?:\\s*[-.\\/,]?\\s*|\\s+of\\s+)(${matchAnyPattern(MONTH_DICTIONARY)})(?=[^\\s\\w]|\\s+[^0-9]|\\s+$|$)`, "i");
+var YEAR_GROUP4 = 1;
+var MONTH_NAME_GROUP5 = 2;
+var ENYearMonthNameParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern() {
     return PATTERN5;
   }
   innerExtract(context, match2) {
-    const year = parseInt(match2[YEAR_GROUP4]);
+    const year = parseYear(match2[YEAR_GROUP4]);
+    const monthName = match2[MONTH_NAME_GROUP5].toLowerCase();
+    const month = MONTH_DICTIONARY[monthName];
+    const result = context.createParsingResult(match2.index, match2[0]);
+    result.start.imply("day", 1);
+    result.start.assign("month", month);
+    result.start.assign("year", year);
+    result.start.addTag("parser/ENYearMonthNameParser");
+    return result;
+  }
+};
+
+// node_modules/chrono-node/dist/esm/locales/en/parsers/ENSlashMonthFormatParser.js
+var PATTERN6 = new RegExp("([0-9]|0[1-9]|1[012])/([0-9]{4})", "i");
+var MONTH_GROUP = 1;
+var YEAR_GROUP5 = 2;
+var ENSlashMonthFormatParser = class extends AbstractParserWithWordBoundaryChecking {
+  innerPattern() {
+    return PATTERN6;
+  }
+  innerExtract(context, match2) {
+    const year = parseInt(match2[YEAR_GROUP5]);
     const month = parseInt(match2[MONTH_GROUP]);
     return context.createParsingComponents().imply("day", 1).assign("month", month).assign("year", year);
   }
@@ -32998,7 +33031,7 @@ var ENTimeExpressionParser = class extends AbstractTimeExpressionParser {
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENTimeUnitAgoFormatParser.js
-var PATTERN6 = new RegExp(`(${TIME_UNITS_PATTERN})\\s{0,5}(?:ago|before|earlier)(?=\\W|$)`, "i");
+var PATTERN7 = new RegExp(`(${TIME_UNITS_PATTERN})\\s{0,5}(?:ago|before|earlier)(?=\\W|$)`, "i");
 var STRICT_PATTERN = new RegExp(`(${TIME_UNITS_NO_ABBR_PATTERN})\\s{0,5}(?:ago|before|earlier)(?=\\W|$)`, "i");
 var ENTimeUnitAgoFormatParser = class extends AbstractParserWithWordBoundaryChecking {
   strictMode;
@@ -33007,7 +33040,7 @@ var ENTimeUnitAgoFormatParser = class extends AbstractParserWithWordBoundaryChec
     this.strictMode = strictMode;
   }
   innerPattern() {
-    return this.strictMode ? STRICT_PATTERN : PATTERN6;
+    return this.strictMode ? STRICT_PATTERN : PATTERN7;
   }
   innerExtract(context, match2) {
     const duration3 = parseDuration(match2[1]);
@@ -33019,7 +33052,7 @@ var ENTimeUnitAgoFormatParser = class extends AbstractParserWithWordBoundaryChec
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENTimeUnitLaterFormatParser.js
-var PATTERN7 = new RegExp(`(${TIME_UNITS_PATTERN})\\s{0,5}(?:later|after|from now|henceforth|forward|out)(?=(?:\\W|$))`, "i");
+var PATTERN8 = new RegExp(`(${TIME_UNITS_PATTERN})\\s{0,5}(?:later|after|from now|henceforth|forward|out)(?=(?:\\W|$))`, "i");
 var STRICT_PATTERN2 = new RegExp(`(${TIME_UNITS_NO_ABBR_PATTERN})\\s{0,5}(later|after|from now)(?=\\W|$)`, "i");
 var GROUP_NUM_TIMEUNITS = 1;
 var ENTimeUnitLaterFormatParser = class extends AbstractParserWithWordBoundaryChecking {
@@ -33029,7 +33062,7 @@ var ENTimeUnitLaterFormatParser = class extends AbstractParserWithWordBoundaryCh
     this.strictMode = strictMode;
   }
   innerPattern() {
-    return this.strictMode ? STRICT_PATTERN2 : PATTERN7;
+    return this.strictMode ? STRICT_PATTERN2 : PATTERN8;
   }
   innerExtract(context, match2) {
     const timeUnits = parseDuration(match2[GROUP_NUM_TIMEUNITS]);
@@ -33508,7 +33541,7 @@ var UnlikelyFormatFilter = class extends Filter {
 };
 
 // node_modules/chrono-node/dist/esm/common/parsers/ISOFormatParser.js
-var PATTERN8 = new RegExp("([0-9]{4})\\-([0-9]{1,2})\\-([0-9]{1,2})(?:T([0-9]{1,2}):([0-9]{1,2})(?::([0-9]{1,2})(?:\\.(\\d{1,4}))?)?(Z|([+-]\\d{2}):?(\\d{2})?)?)?(?=\\W|$)", "i");
+var PATTERN9 = new RegExp("([0-9]{4})\\-([0-9]{1,2})\\-([0-9]{1,2})(?:T([0-9]{1,2}):([0-9]{1,2})(?::([0-9]{1,2})(?:\\.(\\d{1,4}))?)?(Z|([+-]\\d{2}):?(\\d{2})?)?)?(?=\\W|$)", "i");
 var YEAR_NUMBER_GROUP2 = 1;
 var MONTH_NUMBER_GROUP2 = 2;
 var DATE_NUMBER_GROUP2 = 3;
@@ -33521,7 +33554,7 @@ var TZD_HOUR_OFFSET_GROUP = 9;
 var TZD_MINUTE_OFFSET_GROUP = 10;
 var ISOFormatParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern() {
-    return PATTERN8;
+    return PATTERN9;
   }
   innerExtract(context, match2) {
     const components = context.createParsingComponents({
@@ -33689,10 +33722,10 @@ function noon(reference) {
 }
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENCasualDateParser.js
-var PATTERN9 = /(now|today|tonight|tomorrow|overmorrow|tmr|tmrw|yesterday|last\s*night)(?=\W|$)/i;
+var PATTERN10 = /(now|today|tonight|tomorrow|overmorrow|tmr|tmrw|yesterday|last\s*night)(?=\W|$)/i;
 var ENCasualDateParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern(context) {
-    return PATTERN9;
+    return PATTERN10;
   }
   innerExtract(context, match2) {
     let targetDate = context.refDate;
@@ -33737,10 +33770,10 @@ var ENCasualDateParser = class extends AbstractParserWithWordBoundaryChecking {
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENCasualTimeParser.js
-var PATTERN10 = /(?:this)?\s{0,3}(morning|afternoon|evening|night|midnight|midday|noon)(?=\W|$)/i;
+var PATTERN11 = /(?:this)?\s{0,3}(morning|afternoon|evening|night|midnight|midday|noon)(?=\W|$)/i;
 var ENCasualTimeParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern() {
-    return PATTERN10;
+    return PATTERN11;
   }
   innerExtract(context, match2) {
     let component = null;
@@ -33771,13 +33804,13 @@ var ENCasualTimeParser = class extends AbstractParserWithWordBoundaryChecking {
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENWeekdayParser.js
-var PATTERN11 = new RegExp(`(?:(?:\\,|\\(|\\\uFF08)\\s*)?(?:on\\s*?)?(?:(this|last|past|next)\\s*)?(${matchAnyPattern(WEEKDAY_DICTIONARY)}|weekend|weekday)(?:\\s*(?:\\,|\\)|\\\uFF09))?(?:\\s*(?:of\\s*)?(this|last|past|next)\\s*week)?(?=\\W|$)`, "i");
+var PATTERN12 = new RegExp(`(?:(?:\\,|\\(|\\\uFF08)\\s*)?(?:on\\s*?)?(?:(this|last|past|next)\\s*)?(${matchAnyPattern(WEEKDAY_DICTIONARY)}|weekend|weekday)(?:\\s*(?:\\,|\\)|\\\uFF09))?(?:\\s*(?:of\\s*)?(this|last|past|next)\\s*week)?(?=\\W|$)`, "i");
 var PREFIX_GROUP2 = 1;
 var WEEKDAY_GROUP = 2;
 var POSTFIX_GROUP = 3;
 var ENWeekdayParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern() {
-    return PATTERN11;
+    return PATTERN12;
   }
   innerExtract(context, match2) {
     const prefix = match2[PREFIX_GROUP2];
@@ -33816,12 +33849,12 @@ var ENWeekdayParser = class extends AbstractParserWithWordBoundaryChecking {
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENRelativeDateFormatParser.js
-var PATTERN12 = new RegExp(`(this|last|past|next|after\\s*this)\\s*(${matchAnyPattern(TIME_UNIT_DICTIONARY)})(?=\\s*)(?=\\W|$)`, "i");
+var PATTERN13 = new RegExp(`(this|last|past|next|after\\s*this)\\s*(${matchAnyPattern(TIME_UNIT_DICTIONARY)})(?=\\s*)(?=\\W|$)`, "i");
 var MODIFIER_WORD_GROUP = 1;
 var RELATIVE_WORD_GROUP = 2;
 var ENRelativeDateFormatParser = class extends AbstractParserWithWordBoundaryChecking {
   innerPattern() {
-    return PATTERN12;
+    return PATTERN13;
   }
   innerExtract(context, match2) {
     const modifier = match2[MODIFIER_WORD_GROUP].toLowerCase();
@@ -33861,12 +33894,12 @@ var ENRelativeDateFormatParser = class extends AbstractParserWithWordBoundaryChe
 };
 
 // node_modules/chrono-node/dist/esm/common/parsers/SlashDateFormatParser.js
-var PATTERN13 = new RegExp("([^\\d]|^)([0-3]{0,1}[0-9]{1})[\\/\\.\\-]([0-3]{0,1}[0-9]{1})(?:[\\/\\.\\-]([0-9]{4}|[0-9]{2}))?(\\W|$)", "i");
+var PATTERN14 = new RegExp("([^\\d]|^)([0-3]{0,1}[0-9]{1})[\\/\\.\\-]([0-3]{0,1}[0-9]{1})(?:[\\/\\.\\-]([0-9]{4}|[0-9]{2}))?(\\W|$)", "i");
 var OPENING_GROUP = 1;
 var ENDING_GROUP = 5;
 var FIRST_NUMBERS_GROUP = 2;
 var SECOND_NUMBERS_GROUP = 3;
-var YEAR_GROUP5 = 4;
+var YEAR_GROUP6 = 4;
 var SlashDateFormatParser = class {
   groupNumberMonth;
   groupNumberDay;
@@ -33875,7 +33908,7 @@ var SlashDateFormatParser = class {
     this.groupNumberDay = littleEndian ? FIRST_NUMBERS_GROUP : SECOND_NUMBERS_GROUP;
   }
   pattern() {
-    return PATTERN13;
+    return PATTERN14;
   }
   extract(context, match2) {
     const index = match2.index + match2[OPENING_GROUP].length;
@@ -33896,7 +33929,7 @@ var SlashDateFormatParser = class {
     if (text.match(/^\d\.\d$/) || text.match(/^\d\.\d{1,2}\.\d{1,2}\s*$/)) {
       return;
     }
-    if (!match2[YEAR_GROUP5] && text.indexOf("/") < 0) {
+    if (!match2[YEAR_GROUP6] && text.indexOf("/") < 0) {
       return;
     }
     const result = context.createParsingResult(index, text);
@@ -33916,8 +33949,8 @@ var SlashDateFormatParser = class {
     }
     result.start.assign("day", day);
     result.start.assign("month", month);
-    if (match2[YEAR_GROUP5]) {
-      const rawYearNumber = parseInt(match2[YEAR_GROUP5]);
+    if (match2[YEAR_GROUP6]) {
+      const rawYearNumber = parseInt(match2[YEAR_GROUP6]);
       const year = findMostLikelyADYear(rawYearNumber);
       result.start.assign("year", year);
     } else {
@@ -33929,7 +33962,7 @@ var SlashDateFormatParser = class {
 };
 
 // node_modules/chrono-node/dist/esm/locales/en/parsers/ENTimeUnitCasualRelativeFormatParser.js
-var PATTERN14 = new RegExp(`(this|last|past|next|after|\\+|-)\\s*(${TIME_UNITS_PATTERN})(?=\\W|$)`, "i");
+var PATTERN15 = new RegExp(`(this|last|past|next|after|\\+|-)\\s*(${TIME_UNITS_PATTERN})(?=\\W|$)`, "i");
 var PATTERN_NO_ABBR = new RegExp(`(this|last|past|next|after|\\+|-)\\s*(${TIME_UNITS_NO_ABBR_PATTERN})(?=\\W|$)`, "i");
 var ENTimeUnitCasualRelativeFormatParser = class extends AbstractParserWithWordBoundaryChecking {
   allowAbbreviations;
@@ -33938,7 +33971,7 @@ var ENTimeUnitCasualRelativeFormatParser = class extends AbstractParserWithWordB
     this.allowAbbreviations = allowAbbreviations;
   }
   innerPattern() {
-    return this.allowAbbreviations ? PATTERN14 : PATTERN_NO_ABBR;
+    return this.allowAbbreviations ? PATTERN15 : PATTERN_NO_ABBR;
   }
   innerExtract(context, match2) {
     const prefix = match2[1].toLowerCase();
@@ -34013,7 +34046,7 @@ var ENMergeRelativeFollowByDateRefiner = class extends MergingRefiner {
 
 // node_modules/chrono-node/dist/esm/locales/en/refiners/ENExtractYearSuffixRefiner.js
 var YEAR_SUFFIX_PATTERN = new RegExp(`^\\s*(${YEAR_PATTERN})`, "i");
-var YEAR_GROUP6 = 1;
+var YEAR_GROUP7 = 1;
 var ENExtractYearSuffixRefiner = class {
   refine(context, results) {
     results.forEach(function(result) {
@@ -34031,7 +34064,7 @@ var ENExtractYearSuffixRefiner = class {
       context.debug(() => {
         console.log(`Extracting year: '${match2[0]}' into : ${result}`);
       });
-      const year = parseYear(match2[YEAR_GROUP6]);
+      const year = parseYear(match2[YEAR_GROUP7]);
       if (result.end != null) {
         result.end.assign("year", year);
       }
@@ -34097,7 +34130,8 @@ var ENDefaultConfiguration = class {
         new ENSlashMonthFormatParser(),
         new ENTimeExpressionParser(strictMode),
         new ENTimeUnitAgoFormatParser(strictMode),
-        new ENTimeUnitLaterFormatParser(strictMode)
+        new ENTimeUnitLaterFormatParser(strictMode),
+        new ENYearMonthNameParser()
       ],
       refiners: [new ENMergeDateTimeRefiner()]
     }, strictMode);
@@ -34228,7 +34262,7 @@ function parse4(text, ref, option) {
   return casual2.parse(text, ref, option);
 }
 
-// dist/parsers.js
+// src/parsers.ts
 var DURATION_RE = /^\s*(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?\s*$/;
 var BARE_NUMBER_RE = /^\s*\d+\s*$/;
 var RELATIVE_IN_RE = /^\s*in\s+(.+?)\s*$/i;
@@ -34236,13 +34270,13 @@ var TODAY_AT_RE = /^\s*today\s+at\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/i;
 var TOMORROW_AT_RE = /^\s*tomorrow\s+at\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/i;
 var ISO_RE = /^\s*(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})?\s*$/;
 function parseDuration2(s2) {
-  if (!s2 || !s2.trim())
-    throw new Error("Duration is empty");
-  if (BARE_NUMBER_RE.test(s2))
-    return parseInt(s2.trim(), 10);
+  if (!s2 || !s2.trim()) throw new Error("Duration is empty");
+  if (BARE_NUMBER_RE.test(s2)) return parseInt(s2.trim(), 10);
   const m = DURATION_RE.exec(s2);
   if (!m || !(m[1] || m[2] || m[3] || m[4])) {
-    throw new Error(`Malformed duration '${s2}'; expected forms like '5m', '1h30m', '90s', '2d'`);
+    throw new Error(
+      `Malformed duration '${s2}'; expected forms like '5m', '1h30m', '90s', '2d'`
+    );
   }
   const [, d, h, mi, sec] = m;
   return +(d ?? 0) * 86400 + +(h ?? 0) * 3600 + +(mi ?? 0) * 60 + +(sec ?? 0);
@@ -34298,19 +34332,17 @@ function strictParse(s2, tzName) {
 function parseAlarmTime(s2, tzName) {
   const zone = tzName || "UTC";
   const strict2 = strictParse(s2, zone);
-  if (strict2 && strict2.isValid)
-    return strict2;
+  if (strict2 && strict2.isValid) return strict2;
   const results = parse4(s2, /* @__PURE__ */ new Date(), { forwardDate: true });
   if (results.length > 0) {
     const date5 = results[0].start.date();
     const dt = DateTime.fromJSDate(date5).setZone(zone, { keepLocalTime: true });
-    if (dt.isValid)
-      return dt;
+    if (dt.isValid) return dt;
   }
   throw new Error(`Could not parse alarm time: '${s2}'`);
 }
 
-// dist/time.js
+// src/time.ts
 var HHMM_RE = /^(\d{1,2}):(\d{2})$/;
 function tzExists(tz) {
   return IANAZone.isValidZone(tz);
@@ -34357,7 +34389,10 @@ function convertTime(sourceTz, time3, targetTz) {
     return JSON.stringify({ status: "error", error: `Malformed time '${time3}'; expected 24-hour HH:MM (e.g., '14:30')` });
   }
   const today2 = DateTime.now().setZone(sourceTz);
-  const sourceDt = DateTime.fromObject({ year: today2.year, month: today2.month, day: today2.day, hour, minute, second: 0 }, { zone: sourceTz });
+  const sourceDt = DateTime.fromObject(
+    { year: today2.year, month: today2.month, day: today2.day, hour, minute, second: 0 },
+    { zone: sourceTz }
+  );
   if (!sourceDt.isValid) {
     return JSON.stringify({
       status: "error",
@@ -34381,7 +34416,7 @@ function convertTime(sourceTz, time3, targetTz) {
   });
 }
 
-// dist/tools.js
+// src/tools.ts
 var TZ_DESC = "IANA timezone name (e.g., 'America/New_York', 'UTC'). Optional \u2014 defaults to system local zone, then UTC.";
 var TOOLS = [
   {
@@ -34543,19 +34578,15 @@ var TOOLS = [
 ];
 function nowIso() {
   const iso = DateTime.utc().toISO();
-  if (!iso)
-    throw new Error("DateTime.utc().toISO() returned null \u2014 Luxon internal error");
+  if (!iso) throw new Error("DateTime.utc().toISO() returned null \u2014 Luxon internal error");
   return iso;
 }
 function timerView(id, r, now3) {
   const expires = DateTime.fromISO(r.expires_at);
   let status;
-  if (r.cancelled_at)
-    status = "cancelled";
-  else if (now3 >= expires)
-    status = "expired";
-  else
-    status = "running";
+  if (r.cancelled_at) status = "cancelled";
+  else if (now3 >= expires) status = "expired";
+  else status = "running";
   const remainingSeconds = Math.floor(expires.diff(now3, "seconds").seconds);
   return {
     timer_id: id,
@@ -34586,12 +34617,9 @@ var StopwatchIdArgs = external_exports.object({ stopwatch_id: external_exports.s
 function alarmView(id, r, now3) {
   const fires = DateTime.fromISO(r.fires_at);
   let status;
-  if (r.cancelled_at)
-    status = "cancelled";
-  else if (now3 >= fires)
-    status = "fired";
-  else
-    status = "pending";
+  if (r.cancelled_at) status = "cancelled";
+  else if (now3 >= fires) status = "fired";
+  else status = "pending";
   return {
     alarm_id: id,
     label: r.label,
@@ -34626,8 +34654,7 @@ var HANDLERS = {
     }
     const startedAt = nowIso();
     const expiresAtRaw = DateTime.utc().plus({ seconds }).toISO();
-    if (!expiresAtRaw)
-      throw new Error("DateTime.utc().plus().toISO() returned null \u2014 Luxon internal error");
+    if (!expiresAtRaw) throw new Error("DateTime.utc().plus().toISO() returned null \u2014 Luxon internal error");
     const expiresAt = expiresAtRaw;
     const id = makeId();
     await withState(async (s2) => {
@@ -34639,8 +34666,7 @@ var HANDLERS = {
     const { timer_id } = TimerIdArgs.parse(raw);
     const s2 = await loadState();
     const r = s2.timers[timer_id];
-    if (!r)
-      return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
+    if (!r) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
     return JSON.stringify({ status: "ok", timer: timerView(timer_id, r, DateTime.utc()) });
   },
   async timer_list() {
@@ -34655,19 +34681,15 @@ var HANDLERS = {
     let view = null;
     await withState(async (s2) => {
       const r = s2.timers[timer_id];
-      if (!r)
-        return;
+      if (!r) return;
       const now3 = DateTime.utc();
       const nowStr = now3.toISO();
-      if (!nowStr)
-        throw new Error("DateTime.utc().toISO() returned null");
-      if (!r.cancelled_at)
-        r.cancelled_at = nowStr;
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.cancelled_at) r.cancelled_at = nowStr;
       found = true;
       view = timerView(timer_id, r, now3);
     });
-    if (!found)
-      return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
+    if (!found) return JSON.stringify({ status: "error", error: `Timer '${timer_id}' not found` });
     return JSON.stringify({ status: "ok", timer: view });
   },
   async stopwatch_start(raw) {
@@ -34683,8 +34705,7 @@ var HANDLERS = {
     const { stopwatch_id } = StopwatchIdArgs.parse(raw);
     const s2 = await loadState();
     const r = s2.stopwatches[stopwatch_id];
-    if (!r)
-      return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
+    if (!r) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
     return JSON.stringify({ status: "ok", stopwatch: stopwatchView(stopwatch_id, r, DateTime.utc()) });
   },
   // *** Spec §9.2: idempotent stop. Differs from Python — first-stop wins. ***
@@ -34694,19 +34715,15 @@ var HANDLERS = {
     let view = null;
     await withState(async (s2) => {
       const r = s2.stopwatches[stopwatch_id];
-      if (!r)
-        return;
+      if (!r) return;
       const now3 = DateTime.utc();
       const nowStr = now3.toISO();
-      if (!nowStr)
-        throw new Error("DateTime.utc().toISO() returned null");
-      if (!r.stopped_at)
-        r.stopped_at = nowStr;
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.stopped_at) r.stopped_at = nowStr;
       found = true;
       view = stopwatchView(stopwatch_id, r, now3);
     });
-    if (!found)
-      return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
+    if (!found) return JSON.stringify({ status: "error", error: `Stopwatch '${stopwatch_id}' not found` });
     return JSON.stringify({ status: "ok", stopwatch: view });
   },
   async stopwatch_list() {
@@ -34728,8 +34745,7 @@ var HANDLERS = {
       return JSON.stringify({ status: "error", error: `Alarm time '${when}' is in the past (${fires.toUTC().toISO()})` });
     }
     const firesAtRaw = fires.toUTC().toISO();
-    if (!firesAtRaw)
-      throw new Error("fires.toUTC().toISO() returned null \u2014 Luxon internal error");
+    if (!firesAtRaw) throw new Error("fires.toUTC().toISO() returned null \u2014 Luxon internal error");
     const firesAt = firesAtRaw;
     const id = makeId();
     await withState(async (s2) => {
@@ -34741,8 +34757,7 @@ var HANDLERS = {
     const { alarm_id } = AlarmIdArgs.parse(raw);
     const s2 = await loadState();
     const r = s2.alarms[alarm_id];
-    if (!r)
-      return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
+    if (!r) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
     return JSON.stringify({ status: "ok", alarm: alarmView(alarm_id, r, DateTime.utc()) });
   },
   async alarm_list() {
@@ -34757,25 +34772,24 @@ var HANDLERS = {
     let view = null;
     await withState(async (s2) => {
       const r = s2.alarms[alarm_id];
-      if (!r)
-        return;
+      if (!r) return;
       const now3 = DateTime.utc();
       const nowStr = now3.toISO();
-      if (!nowStr)
-        throw new Error("DateTime.utc().toISO() returned null");
-      if (!r.cancelled_at)
-        r.cancelled_at = nowStr;
+      if (!nowStr) throw new Error("DateTime.utc().toISO() returned null");
+      if (!r.cancelled_at) r.cancelled_at = nowStr;
       found = true;
       view = alarmView(alarm_id, r, now3);
     });
-    if (!found)
-      return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
+    if (!found) return JSON.stringify({ status: "error", error: `Alarm '${alarm_id}' not found` });
     return JSON.stringify({ status: "ok", alarm: view });
   }
 };
 
-// dist/index.js
-var server = new Server({ name: "time-mcp", version: "0.2.0" }, { capabilities: { tools: {} } });
+// src/index.ts
+var server = new Server(
+  { name: "time-mcp", version: "0.2.0" },
+  { capabilities: { tools: {} } }
+);
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;

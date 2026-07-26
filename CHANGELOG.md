@@ -14,6 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tested the OS the server actually ships on. The `build` job now runs a
   `[ubuntu-latest, windows-latest]` matrix.
 
+### Security
+
+- **Removed a HIGH-severity vulnerability from the shipped bundle: `fast-uri` 3.1.2 → 3.1.4**
+  via an npm `overrides` entry. It reaches us transitively —
+  `@modelcontextprotocol/sdk@1.29.0 → ajv@8.20.0 → fast-uri` — and `ajv` uses it for schema
+  `$ref` resolution during tool-argument validation, so it is genuinely present in the artifact
+  (6 references in `bundle/index.mjs`). Bumping the SDK was **not** an option: it is already at
+  the latest published version (1.29.0), so the vulnerable range is pinned inside its current tree.
+  Advisories: GHSA-v2hh-gcrm-f6hx, GHSA-4c8g-83qw-93j6 (host confusion via literal backslash /
+  failed IDN canonicalization). Production audit: 4 vulns (1 high) → **3 vulns, 0 high**.
+  - `bundle/index.mjs` regenerated so the fix actually ships (`be990fd8…` → `86a5c1f1…`).
+    `bundle/notify-hook.mjs` is byte-identical, as expected — the hook does not use the SDK.
+- **Deliberately NOT fixed: `@hono/node-server` <2.0.5 (moderate, serve-static path traversal).**
+  The fix requires a **major** bump (1.19.14 → ≥2.0.5) forced inside the SDK's own tree, and the
+  vulnerable code is **not reachable and not present**: this server imports only
+  `StdioServerTransport` (`.mcp.json` type `stdio`), never an HTTP/SSE transport, and esbuild
+  tree-shakes it out — **`serveStatic` appears 0 times in `bundle/index.mjs`**. Forcing a major
+  on the SDK to silence an advisory for code absent from the binary would add more risk than it
+  removes. Revisit when the SDK itself moves to hono 2.x.
+  The remaining `postcss` / `brace-expansion` highs are dev-only (0 references in the bundle).
+
 ### Changed
 
 - **Dependabot now ignores TypeScript `>=7.0.0`, ending a permanently-red CI branch.**
