@@ -30,7 +30,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/luxon": "^3.7.4",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "esbuild": "0.28.2",
     "eslint": "^10.8.1",
     "typescript": "^6.0.3",
