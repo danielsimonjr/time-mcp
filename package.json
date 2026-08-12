@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/luxon": "^3.7.3",
+    "@types/luxon": "^3.7.4",
     "@types/node": "^26.1.2",
     "esbuild": "0.28.1",
     "eslint": "^10.8.0",
