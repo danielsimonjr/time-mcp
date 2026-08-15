@@ -1,6 +1,7 @@
 {
   "name": "time-mcp",
-  "version": "0.2.0",
+  "version": "0.3.2",
+  "private": true,
   "description": "MCP server for current time, timers, stopwatches, and alarms",
   "type": "module",
   "main": "dist/index.js",
@@ -10,9 +11,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "bundle": "npm run bundle:server && npm run bundle:hook",
-    "bundle:server": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=bundle/index.mjs",
-    "bundle:hook": "esbuild src/notify-hook.ts --bundle --platform=node --format=esm --target=node24 --outfile=bundle/notify-hook.mjs",
+    "bundle": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests --max-warnings 0",
     "test": "vitest run",

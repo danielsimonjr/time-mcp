@@ -5,7 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { HANDLERS, TOOLS } from "./tools.js";
 
 const server = new Server(
-  { name: "time-mcp", version: "0.2.0" },
+  { name: "time-mcp", version: __PKG_VERSION__ },
   { capabilities: { tools: {} } },
 );
 

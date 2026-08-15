@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-15
+
+### Security
+
+- 🔴 **The shipped bundle did not contain the 2026-08-08 dependency patches.**
+  `bundle/index.mjs` is the artifact the plugin actually loads, and esbuild inlines
+  dependencies into it — but it was last built **2026-07-26**, thirteen days before
+  `f9def20` patched `js-yaml` / `fast-uri` / `nanoid` / `dompurify`. A bundle built on
+  07-26 cannot contain a change made on 08-08, so those fixes reached the lockfile and
+  stopped there. Rebuilt: `index.mjs` 1,319,166 → 1,282,516 bytes and
+  `notify-hook.mjs` 803,499 → 782,281. Verified by rebuilding and diffing against the
+  committed artifact, then re-running a real MCP `initialize` handshake against the
+  result — not by trusting the lockfile.
+
+### Fixed
+
+- **`package.json` was never bumped past 0.2.0, and the repo had no tags at all.**
+  `.claude-plugin/plugin.json` had been moved to 0.3.0 and then 0.3.1 (the latter
+  explicitly "to force redeploy of the fast-uri security fix"), but `package.json`
+  stayed at `0.2.0` and nothing was ever tagged — so the version the plugin cache keys
+  on had nothing behind it, and the forced redeploy shipped a bundle that predated the
+  next security patch anyway. `package.json`, `plugin.json` and the marketplace entry
+  now all read `0.3.2`; `v0.3.0` and `v0.3.1` are tagged retroactively so
+  `git describe` has something to measure.
+- **Package marked `private`.** The npm name `time-mcp` belongs to another maintainer,
+  so this repo is GitHub-release-only; `private: true` makes that structural rather
+  than remembered.
+- **The server version was a second source of truth, and that is why the drift was
+  invisible.** `src/index.ts` hard-coded `version: "0.2.0"` in the MCP `serverInfo`,
+  so the running server reported `0.2.0` to every client no matter what
+  `package.json`, `plugin.json` or the marketplace said. The literal is gone: the
+  version is now injected at bundle time from `package.json` via esbuild `define`
+  (`__PKG_VERSION__`), leaving one place a version is written. Verified by an
+  `initialize` handshake against the rebuilt bundle, which now answers `0.3.2`.
+- **`npm run bundle` could not run on this machine at all**, which is the practical
+  reason the bundle went thirteen days stale. `esbuild` is a devDependency, but its
+  postinstall is blocked here, so it was simply missing from `node_modules` and the
+  bundle scripts failed with "esbuild is not recognized". The two ad-hoc
+  `bundle:server` / `bundle:hook` shell scripts are replaced by `scripts/build.mjs`,
+  which uses esbuild's JS API and fails loudly rather than silently leaving a stale
+  artifact in place.
+
 ### Security (2026-08-04)
 
 Lock-only via `npm update`; no manifest changed. Transitive dependencies of the
