@@ -41,13 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   version is now injected at bundle time from `package.json` via esbuild `define`
   (`__PKG_VERSION__`), leaving one place a version is written. Verified by an
   `initialize` handshake against the rebuilt bundle, which now answers `0.3.2`.
-- **`npm run bundle` could not run on this machine at all**, which is the practical
-  reason the bundle went thirteen days stale. `esbuild` is a devDependency, but its
-  postinstall is blocked here, so it was simply missing from `node_modules` and the
-  bundle scripts failed with "esbuild is not recognized". The two ad-hoc
-  `bundle:server` / `bundle:hook` shell scripts are replaced by `scripts/build.mjs`,
-  which uses esbuild's JS API and fails loudly rather than silently leaving a stale
-  artifact in place.
+- **`npm run bundle` failed with "esbuild is not recognized".** `esbuild` is a
+  devDependency but was absent from this repo's `node_modules`, so both bundle scripts
+  died immediately. The two ad-hoc `bundle:server` / `bundle:hook` shell invocations are
+  replaced by `scripts/build.mjs`, which uses esbuild's JS API and fails loudly rather
+  than silently leaving a stale artifact in place.
+
+  **Correction (2026-08-15).** This entry originally attributed that failure to esbuild's
+  postinstall being blocked machine-wide. **That was wrong.** `npm config get
+  ignore-scripts` returns `false` on this machine, and Starship independently measured
+  `@esbuild` present across 21 repos. esbuild loads here fine. The actual cause was a
+  stale `node_modules` in this repo plus a guard of mine (`ls node_modules || npm ci`)
+  that skipped the reinstall because the directory merely existed. The durable finding is
+  unchanged and is the important one — **the committed bundle was thirteen days older
+  than its own security patch and nothing detected it** — but the cause is "nobody
+  rebuilt after the change", which wants a rebuild-check in CI, not a tooling unblock.
 
 ### Security (2026-08-04)
 
