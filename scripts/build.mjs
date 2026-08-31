@@ -27,6 +27,7 @@ const common = {
 
 await Promise.all([
   build({ ...common, entryPoints: ['src/index.ts'], outfile: 'bundle/index.mjs' }),
+  // version.ts reads __PKG_VERSION__ when bundled; inject from package.json.
   build({ ...common, entryPoints: ['src/notify-hook.ts'], outfile: 'bundle/notify-hook.mjs' }),
 ]);
 

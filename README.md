@@ -2,8 +2,8 @@
 
 A TypeScript MCP server providing time, timezone, timer, stopwatch, and alarm
 tools for Claude Code. Built on
-[`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk),
-[Luxon](https://moment.github.io/luxon/) for timezone/DST, and
+[`@modelcontextprotocol/server`](https://github.com/modelcontextprotocol/typescript-sdk)
+v2 (MCP 2026-07-28 / MCP 2.0), [Luxon](https://moment.github.io/luxon/) for timezone/DST, and
 [`chrono-node`](https://github.com/wanasit/chrono) for natural-language alarm
 parsing.
 
@@ -41,6 +41,10 @@ parsing.
 
 ## Design notes
 
+- **MCP 2026-07-28 (MCP 2.0).** The server uses `serveStdio` from the v2 SDK and
+  implements `server/discover` for stateless capability negotiation. Legacy clients
+  that still send the `initialize` handshake continue to work on the same stdio
+  connection.
 - **No daemons.** Status is *computed* at read time from stored timestamps.
   To react when a timer expires or an alarm fires, pair with Claude Code's
   `/loop` to poll, e.g.:

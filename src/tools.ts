@@ -1,4 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { DateTime } from "luxon";
 import { loadState, withState, makeId, type TimerRecord, type StopwatchRecord, type AlarmRecord } from "./state.js";
