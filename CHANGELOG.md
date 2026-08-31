@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-31
+
+### Changed
+
+- **MCP 2026-07-28 (MCP 2.0) support.** Upgraded from `@modelcontextprotocol/sdk` v1 to
+  `@modelcontextprotocol/server` v2 and switched the stdio entry from a hand-wired
+  `Server.connect(StdioServerTransport)` to `serveStdio(buildServer)`. The server now
+  implements the stateless `server/discover` handshake and serves both modern
+  (2026-07-28) and legacy (2025-era `initialize`) clients on the same stdio connection.
+- **Tool registration via `McpServer.registerTool`.** The low-level `tools/list` and
+  `tools/call` handlers are replaced by a `buildServer()` factory that registers all 14
+  tools on a fresh `McpServer` instance per connection era.
+
+### Added
+
+- **Protocol conformance tests** (`tests/protocol.test.ts`) exercising `server/discover`,
+  `tools/list`, and `tools/call` over the 2026-07-28 revision via `createMcpHandler`.
+
 ## [0.3.2] - 2026-08-15
 
 ### Security
