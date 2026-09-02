@@ -23,7 +23,7 @@
   "dependencies": {
     "chrono-node": "^2.10.1",
     "luxon": "^3.4.0",
-    "zod": "^4.2.0",
+    "zod": "^4.5.4",
     "@modelcontextprotocol/server": "^2.0.0"
   },
   "devDependencies": {
