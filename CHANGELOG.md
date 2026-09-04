@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Local dev and CI now run on Bun; Node remains the production runtime.** `bun.lock` is
+  committed and `package-lock.json` is removed, so there is ONE lockfile rather than two that can
+  disagree. CI keeps `setup-node` alongside `setup-bun` deliberately: Bun is the toolchain, Node
+  is what this server ships on, and dropping Node would remove the only check that the published
+  artifact still loads for consumers.
+- **Dependabot moves from the `npm` ecosystem to `bun`.** The npm ecosystem edits `package.json`
+  only and leaves `bun.lock` untouched, so every Dependabot PR would have failed
+  `bun install --frozen-lockfile`. Five already-migrated repos in this workspace use the `bun`
+  ecosystem; this follows that pattern instead of working around the symptom.
+
+### Added
+
+- **Node runtime smoke step in CI.** Imports the built `dist/index.js` under Node after the build
+  and fails the job if it throws. Known failure-capable: a bogus entry path exits 1.
+
+### Fixed
+
+- **The startup banner advertised a protocol revision this server cannot speak.** It read
+  `MCP 2026-07-28`, but `@modelcontextprotocol/server@2.0.0` reports
+  `LATEST_PROTOCOL_VERSION = "2025-11-25"`, and a stdio probe confirmed the server negotiates
+  2025-11-25 even when a client explicitly asks for 2026-07-28. The banner is now DERIVED from
+  the SDK constant rather than hardcoded, so it cannot drift from what is actually negotiated.
+  (`2026-07-28` appears in the SDK only inside client error text naming a *future* protocol era,
+  which is why it read as a real revision.) Same defect class as the one fixed in
+  `deepthinking-mcp` `2cacf69` the same day.
+
+
 ## [0.4.0] - 2026-08-31
 
 ### Changed

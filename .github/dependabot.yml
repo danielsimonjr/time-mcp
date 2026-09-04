@@ -1,17 +1,19 @@
 version: 2
 updates:
-  - package-ecosystem: npm
+  # `bun`, not `npm`: the npm ecosystem edits package.json only, leaving bun.lock
+  # untouched, so every Dependabot PR would fail `bun install --frozen-lockfile`.
+  - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: chore
-    labels: [dependencies, npm]
+    labels: [dependencies, bun]
     ignore:
       # TypeScript 7.x is blocked by the lint toolchain, not by our code.
       # typescript-eslint@8.65.0 — and every published 8.65.1-alpha — declares
       #   peer typescript ">=4.8.4 <6.1.0"
-      # so TS 7 fails `npm ci` with ERESOLVE before CI can even typecheck. PR #12
+      # so TS 7 fails install with ERESOLVE before CI can even typecheck. PR #12
       # (bump typescript 5.9.3 -> 7.0.2) was therefore permanently red from
       # 2026-07-15 and was closed rather than merged with --legacy-peer-deps,
       # which would have installed a knowingly broken lint toolchain.
