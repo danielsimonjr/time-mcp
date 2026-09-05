@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { TOOLS } from "../src/tools.js";
 
 const EXPECTED_NAMES = [

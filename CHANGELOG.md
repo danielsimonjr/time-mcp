@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Complete TypeScript-on-Bun toolchain migration.** Replace Vitest with `bun:test`
+  (`bunfig.toml`, drop `vitest.config.ts` / `vitest` dep). Declare `engines.bun >= 1.4.0`;
+  scripts and CI run via Bun (`bun install`, `bun test`, `bun run typecheck|lint|build|bundle`).
+  CI matrix is Bun-first on Linux/Windows; Node 24 remains installed so the smoke step can
+  spawn the production launcher (`node dist/index.js`). Refresh stale npm wording in the README.
+  End users are unchanged: Claude Code still launches with `node`.
 - **Local dev and CI now run on Bun; Node remains the production runtime.** `bun.lock` is
   committed and `package-lock.json` is removed, so there is ONE lockfile rather than two that can
   disagree. CI keeps `setup-node` alongside `setup-bun` deliberately: Bun is the toolchain, Node

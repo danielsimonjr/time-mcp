@@ -1,0 +1,4 @@
+[test]
+# Only *.test.ts under tests/ — keep helpers (if any) out of the suite.
+root = "./tests"
+timeout = 30000

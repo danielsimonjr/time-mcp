@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, setSystemTime } from "bun:test";
 import { getCurrentTime, convertTime } from "../src/time.js";
 
 describe("getCurrentTime", () => {
@@ -48,7 +48,7 @@ describe("convertTime", () => {
   it("rejects DST spring-forward gap (02:30 on 2026-03-08 in America/New_York)", () => {
     // March 8, 2026 02:30 EST does not exist — clocks jump from 01:59 to 03:00.
     // Pin `now` to 12:00 UTC that day so today's date in NY is 2026-03-08.
-    vi.useFakeTimers({ now: new Date("2026-03-08T12:00:00Z") });
+    setSystemTime(new Date("2026-03-08T12:00:00Z"));
     try {
       const r = JSON.parse(convertTime("America/New_York", "02:30", "UTC"));
       expect(r.status).toBe("error");
@@ -56,17 +56,17 @@ describe("convertTime", () => {
         "Time '02:30' does not exist in America/New_York on 2026-03-08 (DST spring-forward gap)",
       );
     } finally {
-      vi.useRealTimers();
+      setSystemTime();
     }
   });
   it("accepts the wall-clock hour just before a DST gap", () => {
     // 01:30 on 2026-03-08 NY DOES exist (still EST before the jump).
-    vi.useFakeTimers({ now: new Date("2026-03-08T12:00:00Z") });
+    setSystemTime(new Date("2026-03-08T12:00:00Z"));
     try {
       const r = JSON.parse(convertTime("America/New_York", "01:30", "UTC"));
       expect(r.status).toBe("ok");
     } finally {
-      vi.useRealTimers();
+      setSystemTime();
     }
   });
 });

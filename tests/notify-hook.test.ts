@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { DateTime } from "luxon";
 import { collectNotifications, formatSeconds } from "../src/notify-hook.js";
 import type { State } from "../src/state.js";
