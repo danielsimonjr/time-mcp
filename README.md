@@ -7,6 +7,10 @@ v2 (MCP 2026-07-28 / MCP 2.0), [Luxon](https://moment.github.io/luxon/) for time
 [`chrono-node`](https://github.com/wanasit/chrono) for natural-language alarm
 parsing.
 
+**Toolchain:** TypeScript on Bun (`bun install`, `bun test`, `bun run build`).
+**Shipped runtime:** Node — Claude Code plugins launch the bundled server with
+`node` (long-lived MCP stdio processes stay on Node by design).
+
 ## Tools (14)
 
 ### Time & Timezone (2)
@@ -53,7 +57,7 @@ parsing.
   ```
 - **Optional notification hook.** A separate CLI entry, shipped two ways:
   `bundle/notify-hook.mjs` (committed, self-contained — **use this one**) and
-  `dist/notify-hook.js` (emitted by `npm run build`, requires `node_modules`).
+  `dist/notify-hook.js` (emitted by `bun run build`, requires `node_modules`).
   When wired as a `UserPromptSubmit` hook in `~/.claude/settings.json`, it
   injects emoji-prefixed notifications for timers/alarms that have fired since
   the last check (one-shot via `notified_at`). See **Notification hook** below.
@@ -82,15 +86,16 @@ timers), so it carries no confirmation gates.
 
 ## Prerequisites
 
-- Node.js 24 or newer
+- [Bun](https://bun.sh) >= 1.4 (toolchain: install, test, scripts)
+- Node.js 24 or newer (to run the compiled server / Claude Code plugins)
 
 ## Installation
 
 ```bash
 git clone https://github.com/danielsimonjr/time-mcp.git
 cd time-mcp
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 The build emits `dist/index.js` (MCP server) and `dist/notify-hook.js` (hook CLI).
@@ -101,9 +106,7 @@ clones and machine migrations (the plugin's MCP server, and the notification
 hook), use the committed self-contained bundles instead:
 
 ```bash
-npm run bundle          # both, via esbuild
-npm run bundle:server   # -> bundle/index.mjs
-npm run bundle:hook     # -> bundle/notify-hook.mjs
+bun run bundle   # both entries via esbuild → bundle/index.mjs + bundle/notify-hook.mjs
 ```
 
 These are checked into the repo and require neither a build step nor
@@ -177,17 +180,17 @@ output, so a malformed state file or missing build never blocks your prompt.
 ## Development
 
 ```bash
-npm run typecheck   # tsc --noEmit
-npm run lint        # eslint src tests --max-warnings 0
-npm test            # vitest run — 92 tests across 9 files
-npm run build       # emit dist/
+bun run typecheck   # tsc --noEmit
+bun run lint        # eslint src tests --max-warnings 0
+bun test            # bun:test — 95 tests across 10 files
+bun run build       # emit dist/
 ```
 
 The test suite uses `process.env.TIME_MCP_STATE_DIR` (set to a per-test tmp
 dir) to isolate state, so it never touches your real `~/.time-mcp/state.json`.
 A mutex regression test races 50 concurrent `withState` callers and asserts no
 lost updates; a corrupted-state test verifies the `.corrupted.<timestamp>`
-backup behavior; a DST spring-forward test pins fake timers to 2026-03-08 and
+backup behavior; a DST spring-forward test pins system time to 2026-03-08 and
 verifies the round-trip gap detection.
 
 ## License

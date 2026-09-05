@@ -30,7 +30,6 @@ Thumbs.db
 # TypeScript build artifacts
 node_modules/
 *.tsbuildinfo
-.vitest/
 
 # SDD scratch/ledger
 .superpowers/

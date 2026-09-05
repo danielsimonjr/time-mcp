@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Bundles the server and the notify hook, injecting the version from package.json.
 //
 // The version used to be a literal in src/index.ts. That made package.json and the

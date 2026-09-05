@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ beforeEach(() => {
   prevEnv = process.env.TIME_MCP_STATE_DIR;
   process.env.TIME_MCP_STATE_DIR = tmp;
   stderr = [];
-  vi.spyOn(process.stderr, "write").mockImplementation((s: string | Uint8Array) => {
+  spyOn(process.stderr, "write").mockImplementation((s: string | Uint8Array) => {
     stderr.push(String(s));
     return true;
   });
@@ -22,7 +22,7 @@ afterEach(() => {
   if (prevEnv === undefined) delete process.env.TIME_MCP_STATE_DIR;
   else process.env.TIME_MCP_STATE_DIR = prevEnv;
   rmSync(tmp, { recursive: true, force: true });
-  vi.restoreAllMocks();
+  mock.restore();
 });
 
 describe("loadState / saveState", () => {

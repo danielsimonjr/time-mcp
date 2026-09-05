@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { buildServer } from "../src/server.js";
 
@@ -31,7 +31,7 @@ describe("MCP 2026-07-28 protocol", () => {
         params: {
           _meta: {
             "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-            "io.modelcontextprotocol/clientInfo": { name: "vitest", version: "1.0.0" },
+            "io.modelcontextprotocol/clientInfo": { name: "bun:test", version: "1.0.0" },
             "io.modelcontextprotocol/clientCapabilities": {},
           },
         },
@@ -62,7 +62,7 @@ describe("MCP 2026-07-28 protocol", () => {
         params: {
           _meta: {
             "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-            "io.modelcontextprotocol/clientInfo": { name: "vitest", version: "1.0.0" },
+            "io.modelcontextprotocol/clientInfo": { name: "bun:test", version: "1.0.0" },
             "io.modelcontextprotocol/clientCapabilities": {},
           },
         },
@@ -92,7 +92,7 @@ describe("MCP 2026-07-28 protocol", () => {
             arguments: { timezone: "UTC" },
             _meta: {
               "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
-              "io.modelcontextprotocol/clientInfo": { name: "vitest", version: "1.0.0" },
+              "io.modelcontextprotocol/clientInfo": { name: "bun:test", version: "1.0.0" },
               "io.modelcontextprotocol/clientCapabilities": {},
             },
           },
