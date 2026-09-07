@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **TypeScript raised to `^7.0.2`, unblocked by replacing `typescript-eslint` with
+  `oxlint`.** The previous entry recorded TS 7 as blocked here. It was blocked by the
+  LINTER, not by anything in this repo: `typescript-eslint` needs TypeScript's
+  programmatic Compiler API, which TS 7.0 does not ship. oxlint parses TypeScript
+  itself and never loads that API, so the block simply does not apply to it.
+
+  **Rule coverage was measured, not assumed.** The old config was
+  `tseslint.configs.recommended` (NOT type-checked) plus two explicit errors:
+  `no-explicit-any` and `no-non-null-assertion`. `.oxlintrc.json` enables the
+  `correctness` category with the `typescript` plugin and both of those rules --
+  **113 active rules**. Verified failure-capable: a probe containing `any`, a
+  non-null assertion and an unused variable produces three errors and exit 1;
+  removing it returns exit 0.
+
+  This mattered because the naive swap SILENTLY loses coverage: with oxlint's
+  defaults, `any` and `!` were not flagged at all and it still exited 0. A linter
+  that reports nothing looks exactly like a clean tree.
+
+  `eslint`, `@eslint/js` and `typescript-eslint` are removed along with
+  `eslint.config.mjs`.
+
 ### Fixed
 
 - **Reverted the TypeScript 7.0.2 bump: it broke `lint` and turned CI red.**
