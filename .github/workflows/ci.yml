@@ -28,7 +28,7 @@ jobs:
         # on Windows), but CI was Linux-only — i.e. it never tested the OS the
         # server actually ships on.
         os: [ubuntu-latest, windows-latest]
-        bun-version: ["1.4.0"]
+        bun-version: ["1.4.2"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

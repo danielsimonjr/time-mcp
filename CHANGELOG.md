@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Reverted the TypeScript 7.0.2 bump: it broke `lint` and turned CI red.**
+  `typescript-eslint` refuses TS 7 outright (`typescript-eslint does not support TS
+  7.0.`) because TS 7.0 shipped without the stable programmatic Compiler API. The bump
+  was landed by a sweep that ran typecheck, test and build but NOT lint -- a gate that
+  is not run is indistinguishable from one that passed. TypeScript returns to `^6.0.3`.
+
+- **The CI Bun matrix still installed 1.4.0** while the manifest declared 1.4.2,
+  because the matrix value is written with DOUBLE quotes (`["1.4.0"]`) and the sweep's
+  pattern only matched single quotes. Now 1.4.2, so the job name and the manifest
+  finally agree.
+
 ### Changed
 
 - **TypeScript raised to `^7.0.2` and Bun pinned to 1.4.2.** Part of the fleet move to
