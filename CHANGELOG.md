@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **TypeScript raised to `^7.0.2` and Bun pinned to 1.4.2.** Part of the fleet move to
+  the current releases of both. `packageManager`, `engines.bun` and the CI workflow
+  move together -- a version the manifest declares but CI does not install is a pin
+  that enforces nothing.
+
 ### Fixed
 
 - **Dependabot reverted from the `bun` ecosystem back to `npm`.** The 09-04 Bun migration pointed
