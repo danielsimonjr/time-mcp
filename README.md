@@ -56,7 +56,7 @@ parsing.
   /loop 30s timer_check abc12345; if status is "expired", do X
   ```
 - **Optional notification hook.** A separate CLI entry, shipped two ways:
-  `bundle/notify-hook.mjs` (committed, self-contained — **use this one**) and
+  `plugin/bundle/notify-hook.mjs` (committed, self-contained — **use this one**) and
   `dist/notify-hook.js` (emitted by `bun run build`, requires `node_modules`).
   When wired as a `UserPromptSubmit` hook in `~/.claude/settings.json`, it
   injects emoji-prefixed notifications for timers/alarms that have fired since
@@ -78,7 +78,7 @@ parsing.
 ## Companion skill
 
 This plugin ships a companion skill, `time` (`time-mcp:time`, slash trigger
-`/time`), at `skills/time/SKILL.md`. It's a judgment layer over the 14 tools
+`/time`), at `plugin/skills/time/SKILL.md`. It's a judgment layer over the 14 tools
 above — no new tools of its own — that steers you toward the right family
 (timer vs. stopwatch vs. alarm) and keeps the `_id`-based check/cancel/list
 flow correct. All operations it covers are safe (read-only or ephemeral
@@ -106,7 +106,7 @@ clones and machine migrations (the plugin's MCP server, and the notification
 hook), use the committed self-contained bundles instead:
 
 ```bash
-bun run bundle   # both entries via esbuild → bundle/index.mjs + bundle/notify-hook.mjs
+bun run bundle   # both entries via esbuild → plugin/bundle/index.mjs + plugin/bundle/notify-hook.mjs
 ```
 
 These are checked into the repo and require neither a build step nor
@@ -133,7 +133,7 @@ Then run `/reload-plugins` in Claude Code. Tools appear under the
 
 ## Notification hook (optional)
 
-Wire `bundle/notify-hook.mjs` into Claude Code so timer expirations and alarm
+Wire `plugin/bundle/notify-hook.mjs` into Claude Code so timer expirations and alarm
 fires appear as in-session context on your next prompt — no `/loop` polling
 required for the basic "tell me when it fires" use case.
 
@@ -147,7 +147,7 @@ Add to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/path/to/time-mcp/bundle/notify-hook.mjs",
+            "command": "node C:/path/to/time-mcp/plugin/bundle/notify-hook.mjs",
             "timeout": 5
           }
         ]
@@ -157,7 +157,7 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-> **Point the hook at `bundle/notify-hook.mjs`, not `dist/notify-hook.js`.**
+> **Point the hook at `plugin/bundle/notify-hook.mjs`, not `dist/notify-hook.js`.**
 > `dist/` is gitignored and needs `node_modules`, so a hook wired to it fails
 > with `MODULE_NOT_FOUND` (`node:internal/modules/cjs/loader`) on any fresh
 > clone or machine migration — the build output simply isn't there. The bundle

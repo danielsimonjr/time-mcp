@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-09-17
 
 ### Changed
 
@@ -117,6 +117,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Protocol conformance tests** (`tests/protocol.test.ts`) exercising `server/discover`,
   `tools/list`, and `tools/call` over the 2026-07-28 revision via `createMcpHandler`.
+
+### Changed
+
+- **The plugin now lives in `plugin/`.** The marketplace entry installed the whole
+  repository root. The root carries `package.json` and `bun.lock`, so Claude Code's
+  installer ran `bun install --frozen-lockfile --ignore-scripts` on every install, and
+  the cached plugin held **74.3 MB** of `node_modules` (76.8 MB total) — typescript,
+  oxlint and esbuild, none of which the shipped artifacts run. The installer has no
+  omit-dev option, so the only fix is to install a directory that has no lockfile.
+
+  `plugin/` now holds `.claude-plugin/plugin.json`, `.mcp.json`, `bundle/` and `skills/`
+  and NOTHING else — no `package.json`, no lockfile. The repository root keeps its own
+  `package.json` and `bun.lock` for development, and `scripts/build.mjs` writes both
+  artifacts into `plugin/bundle/`. `absWorkingDir` is already the repository root, so the
+  output paths stay relative. The marketplace entry must become `git-subdir` with
+  `path: "plugin"`.
+
+  **The notify hook moves with it: it is now `plugin/bundle/notify-hook.mjs`.** Anyone
+  who wired the old `bundle/notify-hook.mjs` path into `settings.json` must update it.
+  README is updated throughout.
+
+  Both bundles are fully self-contained: **zero runtime externals** — `luxon` and `zod`
+  are runtime dependencies, but esbuild inlines them. Verified by copying `plugin/` alone
+  into an empty directory (no `node_modules`, `package.json` or lockfile anywhere above
+  it) and driving the real artifacts:
+  - the server over stdio — `initialize` and `tools/list` succeed and return **14 tools**;
+  - the hook with a state file holding an already-expired timer, which is the path that
+    actually produces output — it emits its `UserPromptSubmit` payload. Running it with
+    nothing expired proves nothing, because that path exits 0 silently.
+
+  Both repeated with every non-builtin `import` and `require` denied by a loader hook:
+  same results, zero denials. The guard is failure-capable — a control doing
+  `import ts from "typescript"` fails under it with `DENIED_EXTERNAL_IMPORT` and exit 1.
+
+  Version 0.5.0, not 0.4.0. The plugin cache is keyed by version and already holds
+  `local-marketplace/time-mcp/0.4.0/`, so 0.4.0 would have reinstalled nothing.
+
 
 ## [0.3.2] - 2026-08-15
 
